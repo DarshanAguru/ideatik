@@ -1,0 +1,129 @@
+# ─── macOS ───────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+.gitignore
+# ─── Linux ───────────────────────────────────────────────────────────────────
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ─── Xcode ───────────────────────────────────────────────────────────────────
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata
+*.xccheckout
+*.moved-aside
+DerivedData
+*.hmap
+*.ipa
+*.xcuserstate
+**/.xcode.env.local
+
+# ─── Android / IntelliJ ──────────────────────────────────────────────────────
+.gradle
+local.properties
+*.iml
+*.hprof
+.cxx/
+.kotlin/
+.idea/
+android/.idea/
+android/build/
+android/app/build/
+android/app/release/
+
+# Signing keys — NEVER commit keystores or key.properties
+*.keystore
+!debug.keystore
+android/app/key.properties
+android/key.properties
+android/app/*.jks
+android/release-key.*
+
+# ─── Node.js ─────────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log
+yarn-error.log
+.pnpm-debug.log
+
+# ─── React Native / Metro ────────────────────────────────────────────────────
+# Bundle artifacts
+*.jsbundle
+*.jsbundle.map
+android/app/src/main/assets/index.android.bundle
+android/app/src/main/assets/index.android.bundle.map
+
+# Metro health checks
+.metro-health-check*
+
+# Hermes bytecode
+*.hbc
+
+# ─── TypeScript ──────────────────────────────────────────────────────────────
+dist/
+lib/
+*.tsbuildinfo
+
+# ─── Environment & secrets ───────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+
+# ─── Testing / Coverage ──────────────────────────────────────────────────────
+/coverage
+jest-results/
+
+# ─── Fastlane ────────────────────────────────────────────────────────────────
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots
+**/fastlane/test_output
+
+# ─── Ruby / CocoaPods ────────────────────────────────────────────────────────
+**/Pods/
+/vendor/bundle/
+
+# ─── Yarn ────────────────────────────────────────────────────────────────────
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# ─── Editor ──────────────────────────────────────────────────────────────────
+.vscode/
+.history/
+*.swp
+*.swo
+*.suo
+.idea/
+*.code-workspace
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ─── Whisper model files (large binary — download via Settings) ──────────────
+# These are downloaded at runtime via the in-app model downloader.
+# Committed model files would bloat the repo unnecessarily.
+src/models/
+android/app/src/main/assets/models/
+ios/models/
+*.bin
+*.ggml
