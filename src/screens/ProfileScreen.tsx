@@ -114,12 +114,12 @@ export const ProfileScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* Security & System Info */}
+      {/* Privacy & Architecture */}
       <View style={styles.section}>
         <View style={styles.sectionTitleRow}>
           <Shield size={18} color={colors.foreground} style={styles.icon} />
           <Heading size="sm" style={styles.sectionTitle}>
-            Privacy & Architecture
+            Privacy &amp; Architecture
           </Heading>
         </View>
         <View
@@ -132,10 +132,19 @@ export const ProfileScreen: React.FC = () => {
           ]}
         >
           <Body size="sm" style={styles.infoText}>
-            Ideatik uses a **Local-First** design. Note text files are saved as standard Markdown (.md) and audio files are stored as standard M4A files on your internal storage.
+            🔒 <Body size="sm" style={{ fontWeight: '700' }}>100% Offline · No Cloud · No Accounts</Body>
           </Body>
           <Body size="sm" style={styles.infoText}>
-            No accounts, no sync servers, no telemetry, and no cloud backups. Back up your notes simply by copying the files from your device.
+            All speech-to-text runs entirely on this device using a quantized Whisper model (ggml-small.en-q5_1). Your audio and transcripts never leave your phone — not even during model download (model only).
+          </Body>
+          <Body size="sm" style={styles.infoText}>
+            🧩 <Body size="sm" style={{ fontWeight: '600' }}>Local-First Storage</Body> — Notes are saved as standard Markdown (.md) files and audio as WAV on your internal storage. Back up by copying files directly from your device.
+          </Body>
+          <Body size="sm" style={styles.infoText}>
+            ⚡ <Body size="sm" style={{ fontWeight: '600' }}>WAV Chunking</Body> — Long recordings are split into 30-second segments processed sequentially to keep memory usage low on mobile.
+          </Body>
+          <Body size="sm" style={{ lineHeight: 20, color: colors.muted }}>
+            No analytics, no telemetry, no sync servers, no crash reporters. Zero third-party data sharing.
           </Body>
         </View>
       </View>

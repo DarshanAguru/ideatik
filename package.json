@@ -20,6 +20,7 @@
     "react": "19.2.3",
     "react-native": "0.86.0",
     "react-native-audio-record": "^0.2.2",
+    "react-native-background-actions": "^4.1.0",
     "react-native-fs": "^2.20.0",
     "react-native-mmkv": "^4.3.1",
     "react-native-nitro-modules": "^0.35.9",

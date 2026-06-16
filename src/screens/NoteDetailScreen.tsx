@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { StyleSheet, View, TextInput, ScrollView, TouchableOpacity, Alert, Dimensions, ActivityIndicator, Modal, Text } from 'react-native';
+import { StyleSheet, View, TextInput, ScrollView, TouchableOpacity, Alert, Dimensions, ActivityIndicator, Modal, Text, KeyboardAvoidingView, Platform } from 'react-native';
 import Tts from 'react-native-tts';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { ScreenWrapper } from '../components/ScreenWrapper';
@@ -21,7 +21,7 @@ import { TagBadge } from '../components/TagBadge';
 import { useTagsStore } from '../features/tags/tagsStore';
 const { width } = Dimensions.get('window');
 
-const ChecklistItemRow = ({ item, colors, onToggle, onDelete, onUpdate, isFinance }: any) => {
+const ChecklistItemRow = ({ item, colors, onToggle, onDelete, onUpdate, isFinance, onAddNext }: any) => {
   const [localText, setLocalText] = useState(item.text);
   const [localAmount, setLocalAmount] = useState(item.amount !== undefined ? String(item.amount) : '');
 
@@ -62,6 +62,12 @@ const ChecklistItemRow = ({ item, colors, onToggle, onDelete, onUpdate, isFinanc
         onBlur={handleBlur}
         placeholder="List item"
         placeholderTextColor={colors.placeholder}
+        returnKeyType="next"
+        blurOnSubmit={false}
+        onSubmitEditing={() => {
+          handleBlur();
+          onAddNext?.();
+        }}
       />
 
       {isFinance && (
@@ -149,11 +155,18 @@ export const NoteDetailScreen: React.FC = () => {
   
   const progressInterval = useRef<any>(null);
 
+  const noteRef = useRef<any>(null);
+  const addItemInputRef = useRef<any>(null);
+
+  // Keep noteRef in sync without causing re-renders
+  useEffect(() => {
+    noteRef.current = note;
+  }, [note]);
+
   useEffect(() => {
     fetchNoteDetails();
     loadTags();
     return () => {
-      // Release player and clear intervals on unmount
       AudioPlayerService.release();
       if (progressInterval.current) clearInterval(progressInterval.current);
     };
@@ -163,18 +176,19 @@ export const NoteDetailScreen: React.FC = () => {
   useEffect(() => {
     const unsubscribe = useNotesStore.subscribe((state) => {
       const updatedNote = state.notesList.find((n: any) => n.id === noteId);
-      if (updatedNote) {
+      const current = noteRef.current;
+      if (updatedNote && current) {
         if (
-          !note ||
-          note.transcriptionStatus !== updatedNote.transcriptionStatus ||
-          note.markdownContent !== updatedNote.markdownContent
+          current.transcriptionStatus !== updatedNote.transcriptionStatus ||
+          current.markdownContent !== updatedNote.markdownContent
         ) {
           fetchNoteDetails();
         }
       }
     });
     return unsubscribe;
-  }, [noteId, note]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteId]);
 
   useEffect(() => {
     if (structuredNote) {
@@ -683,6 +697,7 @@ export const NoteDetailScreen: React.FC = () => {
             onDelete={handleDeleteChecklistItem}
             onUpdate={handleUpdateChecklistItem}
             isFinance={note.type === 'finance'}
+            onAddNext={() => addItemInputRef.current?.focus()}
           />
         ))}
 
@@ -690,16 +705,21 @@ export const NoteDetailScreen: React.FC = () => {
         <View style={[styles.keepAddRow, { borderColor: colors.border }]}>
           <Plus size={18} color={colors.muted} style={{ marginRight: SPACING.sm }} />
           <TextInput
+            ref={addItemInputRef}
             style={[styles.keepAddInput, { color: colors.foreground }]}
             placeholder={note.type === 'finance' ? "Add expense..." : "Add item..."}
             placeholderTextColor={colors.placeholder}
             value={newItemText}
             onChangeText={setNewItemText}
+            returnKeyType="done"
+            blurOnSubmit={false}
             onSubmitEditing={() => {
               if (newItemText.trim()) {
                 handleAddChecklistItem(newItemText, note.type === 'finance' ? parseFloat(newItemAmount) || 0 : undefined);
                 setNewItemText('');
                 setNewItemAmount('');
+                // Keep focus so user can add another item
+                setTimeout(() => addItemInputRef.current?.focus(), 50);
               }
             }}
           />
@@ -1091,9 +1111,13 @@ export const NoteDetailScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Main content viewport */}
+      {/* Main content viewport — wrapped in KeyboardAvoidingView so input stays visible */}
       {isEditing ? (
-        <View style={styles.editorContainer}>
+        <KeyboardAvoidingView
+          style={styles.editorContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
           <TextInput
             style={[styles.markdownEditor, { color: colors.foreground, borderColor: colors.border }]}
             multiline
@@ -1104,7 +1128,7 @@ export const NoteDetailScreen: React.FC = () => {
             placeholder="Write your note..."
             placeholderTextColor={colors.placeholder}
           />
-        </View>
+        </KeyboardAvoidingView>
       ) : (
         <View style={{ flex: 1 }}>
           {/* Segment Selector Tabs */}
