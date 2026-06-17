@@ -122,7 +122,7 @@ export const NotesScreen: React.FC = () => {
         meta = `${done}/${parsedItems.length} done`;
       } else if (item.type === 'finance' && parsedItems.length > 0) {
         const total = parsedItems.reduce((s: number, i: any) => s + (i.amount || 0), 0);
-        meta = `$${Math.abs(total).toFixed(2)} total`;
+        meta = `₹${Math.abs(total).toFixed(2)} total`;
       } else if (
         item.transcriptionStatus === 'queued' ||
         item.transcriptionStatus === 'processing' ||
