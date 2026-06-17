@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, Modal, Text, ActivityIndicator, Alert } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import {
   FileText,
   File,
   Music,
   X,
+  Copy,
 } from 'lucide-react-native';
 import { COLORS, SPACING, TYPOGRAPHY } from '../theme/theme';
 import { ExportService, ExportedFile } from '../services/export/ExportService';
+import { StructuredNoteService } from '../services/notes/StructuredNoteService';
 
 interface ShareOptionsModalProps {
   visible: boolean;
@@ -20,7 +23,7 @@ interface ExportOption {
   id: string;
   label: string;
   icon: any;
-  format: 'txt' | 'md' | 'pdf' | 'audio';
+  format: 'txt' | 'md' | 'pdf' | 'audio' | 'copy';
 }
 
 /**
@@ -39,6 +42,7 @@ export const ShareOptionsModal: React.FC<ShareOptionsModalProps> = ({
     { id: '1', label: 'Text (.txt)', icon: FileText, format: 'txt' },
     { id: '2', label: 'Markdown (.md)', icon: File, format: 'md' },
     { id: '3', label: 'PDF (.pdf)', icon: File, format: 'pdf' },
+    { id: '5', label: 'Copy as Markdown', icon: Copy, format: 'copy' },
   ];
 
   // Add audio option only if note has recording
@@ -54,6 +58,15 @@ export const ShareOptionsModal: React.FC<ShareOptionsModalProps> = ({
   const handleExport = async (format: ExportOption['format']) => {
     setIsExporting(true);
     try {
+      if (format === 'copy') {
+        const markdown = StructuredNoteService.toMarkdown(StructuredNoteService.fromNote(note));
+        Clipboard.setString(markdown);
+        Alert.alert('Copied', 'Note/List copied to clipboard in Markdown format.');
+        setIsExporting(false);
+        onClose();
+        return;
+      }
+
       let exportedFile: ExportedFile;
 
       switch (format) {
@@ -203,6 +216,8 @@ export const ShareOptionsModal: React.FC<ShareOptionsModalProps> = ({
                     >
                       {option.format === 'audio'
                         ? 'Share your voice memo'
+                        : option.format === 'copy'
+                        ? 'Copy note content to clipboard'
                         : `Share as ${option.label.split('(')[1]?.slice(0, -1) || 'file'}`}
                     </Text>
                   </View>

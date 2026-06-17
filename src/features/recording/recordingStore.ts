@@ -61,28 +61,9 @@ interface RecordingStore {
 let timerInterval: any = null;
 let isStartingRecording = false;
 let isTranscribing = false; // Prevent concurrent transcription
+let startTime = 0;
+let accumulatedTime = 0;
 
-const getAmplitudeFromPCM = (base64Data: string): number => {
-  try {
-    const buffer = Buffer.from(base64Data, 'base64');
-    let sum = 0;
-    const length = buffer.length / 2;
-    const step = 8;
-    let count = 0;
-    for (let i = 0; i < length; i += step) {
-      if (i * 2 + 1 < buffer.length) {
-        const sample = buffer.readInt16LE(i * 2);
-        sum += sample * sample;
-        count++;
-      }
-    }
-    const rms = Math.sqrt(sum / (count || 1));
-    const normalized = Math.min(rms / 5000, 1);
-    return isNaN(normalized) ? 0.05 : Math.max(0.05, normalized);
-  } catch {
-    return 0.05;
-  }
-};
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const transcribeLocallyInBackground = async (
@@ -113,7 +94,7 @@ const transcribeLocallyInBackground = async (
       checked: item.checked,
     }));
 
-    const parsed = CommandParser.parse(rawText, parserItems);
+    const parsed = CommandParser.parse(rawText, parserItems, existing.type);
     
     // Merge references
     const mergedRefs = [...(existing.references || [])];
@@ -188,7 +169,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   noteType: 'note',
   noteId: '',
   elapsedTime: 0,
-  waveform: Array(30).fill(0.05),
+  waveform: Array(40).fill(0.05),
   audioUri: '',
   duration: 0,
   
@@ -214,15 +195,26 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
 
   downloadModel: async () => {
     set({ isDownloadingModel: true, modelDownloadProgress: 0, downloadModelError: null });
-    try {
-      await WhisperService.downloadModel((progress) => {
-        set({ modelDownloadProgress: progress });
-      });
-      set({ isDownloadingModel: false });
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown model download error';
-      set({ isDownloadingModel: false, downloadModelError: msg });
-      throw error;
+    const maxRetries = 3;
+    let attempt = 0;
+    while (attempt < maxRetries) {
+      try {
+        await WhisperService.downloadModel((progress) => {
+          set({ modelDownloadProgress: progress });
+        });
+        set({ isDownloadingModel: false });
+        return; // Success
+      } catch (error) {
+        attempt++;
+        console.warn(`Model download failed (attempt ${attempt}/${maxRetries}):`, error);
+        if (attempt >= maxRetries) {
+          const msg = error instanceof Error ? error.message : 'Unknown model download error';
+          set({ isDownloadingModel: false, downloadModelError: msg });
+          throw error;
+        }
+        // Wait 2 seconds before retrying
+        await new Promise<void>((resolve) => setTimeout(() => resolve(), 2000));
+      }
     }
   },
 
@@ -248,7 +240,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         noteType: type,
         recordingState: 'recording',
         elapsedTime: 0,
-        waveform: Array(30).fill(0.05),
+        waveform: Array(40).fill(0.05),
         audioUri: '',
         duration: 0,
         rawTranscript: '',
@@ -283,24 +275,14 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       });
 
       try {
-        let lastWaveformUpdate = 0;
-        let waveBuffer = Array(30).fill(0.05);
+        await AudioService.start(noteId);
 
-        await AudioService.start(noteId, (base64Chunk) => {
-          const amp = getAmplitudeFromPCM(base64Chunk);
-          waveBuffer.shift();
-          waveBuffer.push(amp);
-
-          const now = Date.now();
-          if (now - lastWaveformUpdate >= 80) {
-            lastWaveformUpdate = now;
-            set({ waveform: [...waveBuffer] });
-          }
-        });
-
+        startTime = Date.now();
+        accumulatedTime = 0;
         timerInterval = setInterval(() => {
-          set((state) => ({ elapsedTime: state.elapsedTime + 1 }));
-        }, 1000);
+          const elapsed = accumulatedTime + Math.floor((Date.now() - startTime) / 1000);
+          set({ elapsedTime: elapsed });
+        }, 200);
 
       } catch (error) {
         set({ recordingState: 'idle' });
@@ -320,6 +302,8 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     try {
       await AudioService.pause();
       
+      accumulatedTime += Math.floor((Date.now() - startTime) / 1000);
+      
       set({ 
         recordingState: 'paused',
         finalizedTranscript: get().rawTranscript
@@ -337,9 +321,11 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       
       set({ recordingState: 'recording' });
 
+      startTime = Date.now();
       timerInterval = setInterval(() => {
-        set((state) => ({ elapsedTime: state.elapsedTime + 1 }));
-      }, 1000);
+        const elapsed = accumulatedTime + Math.floor((Date.now() - startTime) / 1000);
+        set({ elapsedTime: elapsed });
+      }, 200);
 
     } catch (e) {
       console.error('Error resuming recording:', e);
@@ -432,6 +418,8 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   resetRecording: (discard = false) => {
     if (timerInterval) clearInterval(timerInterval);
     isTranscribing = false;
+    startTime = 0;
+    accumulatedTime = 0;
     
     try {
       AudioService.reset();
@@ -457,7 +445,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     set({
       recordingState: 'idle',
       elapsedTime: 0,
-      waveform: Array(30).fill(0.05),
+      waveform: Array(40).fill(0.05),
       audioUri: '',
       duration: 0,
       rawTranscript: '',
@@ -475,6 +463,9 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
 
   resumeFromSnapshot: async (snapshot: RecordingSnapshot) => {
     // Restore all in-memory state from the snapshot
+    accumulatedTime = snapshot.elapsedTime;
+    startTime = Date.now();
+
     set({
       noteId: snapshot.noteId,
       noteType: snapshot.noteType,
@@ -488,7 +479,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       elapsedTime: snapshot.elapsedTime,
       audioUri: snapshot.audioUri,
       recordingState: 'paused', // Start paused so user can choose to resume
-      waveform: Array(30).fill(0.05),
+      waveform: Array(40).fill(0.05),
       duration: 0,
       showReferenceModal: false,
       autoSaved: false,
@@ -567,7 +558,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       checked: item.checked,
     }));
 
-    const parsed = CommandParser.parse(newFinal, parserItems);
+    const parsed = CommandParser.parse(newFinal, parserItems, get().noteType);
     
     const structured: StructuredNote = {
       title: parsed.title || get().noteTitle,

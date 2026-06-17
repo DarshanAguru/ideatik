@@ -82,10 +82,36 @@ class FilesystemServiceClass {
     const wavPath = this.getAudioPath(noteId);
 
     if (await RNFS.exists(mdPath)) {
-      await RNFS.unlink(mdPath);
+      await RNFS.unlink(mdPath).catch(() => {});
     }
     if (await RNFS.exists(wavPath)) {
-      await RNFS.unlink(wavPath);
+      await RNFS.unlink(wavPath).catch(() => {});
+    }
+
+    // 1. Delete any chunk files: e.g. [noteId].wav_chunk_[index].wav in /files/audio/
+    try {
+      const audioFiles = await RNFS.readDir(this.audioDir);
+      const chunkPrefix = `${noteId}.wav_chunk_`;
+      for (const file of audioFiles) {
+        if (file.isFile() && file.name.startsWith(chunkPrefix)) {
+          await RNFS.unlink(file.path).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn('FilesystemService: Error deleting chunk files:', e);
+    }
+
+    // 2. Delete any recording segment files: e.g. seg_[noteId]_[index].wav in DocumentDirectoryPath
+    try {
+      const docFiles = await RNFS.readDir(RNFS.DocumentDirectoryPath);
+      const segmentPrefix = `seg_${noteId}_`;
+      for (const file of docFiles) {
+        if (file.isFile() && file.name.startsWith(segmentPrefix)) {
+          await RNFS.unlink(file.path).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn('FilesystemService: Error deleting segment files:', e);
     }
   }
 

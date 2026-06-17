@@ -90,16 +90,16 @@ class NoteRepositoryClass {
 
       if (!isNewNote && !isNoteDeleted && !isTranscribing) {
         const currentTitle = note.title || (existingNote ? existingNote.title : '');
+        const hasAudio = !!finalAudioUri;
         if (type === 'list' || type === 'finance') {
           const itemCount = structuredNote.items ? structuredNote.items.length : 0;
-          if (itemCount === 0 && isDefaultTitle(currentTitle)) {
+          if (itemCount === 0 && !hasAudio && isDefaultTitle(currentTitle)) {
             shouldSave = false;
           }
         } else {
           const hasText =
             (note.transcript && note.transcript.trim().length > 0) ||
             (structuredNote.bodyText && structuredNote.bodyText.trim().length > 0);
-          const hasAudio = !!finalAudioUri;
           if (!hasText && !hasAudio && isDefaultTitle(currentTitle)) {
             shouldSave = false;
           }
@@ -222,13 +222,9 @@ class NoteRepositoryClass {
    */
   async delete(id: string): Promise<void> {
     try {
-      this.saveCache.delete(id);
-      await DatabaseService.execute(
-        `UPDATE notes SET isDeleted = 1 WHERE id = ?;`,
-        [id]
-      );
+      await this.purge(id);
     } catch (e) {
-      console.error(`NoteRepository: Error soft-deleting note ${id}:`, e);
+      console.error(`NoteRepository: Error deleting note ${id}:`, e);
       throw e;
     }
   }
@@ -259,6 +255,12 @@ class NoteRepositoryClass {
         [id]
       );
       await FilesystemService.deleteAssets(id);
+      try {
+        const { TranscriptionQueue } = require('../queue/TranscriptionQueue');
+        await TranscriptionQueue.removeByNoteId(id);
+      } catch (err) {
+        console.warn('NoteRepository: Error removing from transcription queue:', err);
+      }
     } catch (e) {
       console.error(`NoteRepository: Error purging note assets ${id}:`, e);
       throw e;

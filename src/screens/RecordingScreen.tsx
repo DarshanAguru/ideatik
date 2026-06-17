@@ -22,7 +22,33 @@ import { noteFormatter } from '../services/parsers/noteFormatter';
 import { NoteRepository } from '../services/database/NoteRepository';
 import { triggerHaptic } from '../utils/haptics';
 
-// ─── RecordingScreen ──────────────────────────────────────────────────────────
+// ─── TimerDisplay ───────────────────────────────────────────────────────────
+const formatTime = (seconds: number): string => {
+  const m = Math.floor(seconds / 60)
+    .toString()
+    .padStart(2, '0');
+  const s = (seconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+};
+
+const TimerDisplay: React.FC<{ themeMode: 'dark' | 'light' }> = ({ themeMode }) => {
+  const elapsedTime = useRecordingStore((state) => state.elapsedTime);
+  const colors = COLORS[themeMode];
+  return (
+    <Heading
+      size="display"
+      style={{
+        fontSize: TYPOGRAPHY.sizes.display,
+        fontWeight: TYPOGRAPHY.weights.bold as any,
+        fontFamily: 'monospace',
+        letterSpacing: 2,
+        color: colors.foreground,
+      }}
+    >
+      {formatTime(elapsedTime)}
+    </Heading>
+  );
+};
 
 export const RecordingScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -32,7 +58,6 @@ export const RecordingScreen: React.FC = () => {
   const {
     recordingState,
     noteType,
-    elapsedTime,
     waveform,
     partialTranscript,
     isDownloadingModel,
@@ -90,37 +115,33 @@ export const RecordingScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordingState]);
 
-  // ── Waveform bar animations ───────────────────────────────────────────────
-  // Each bar gets its own Animated.Value for organic movement
-  const barAnimValues = useRef(
-    Array.from({ length: 30 }, () => new Animated.Value(0.1))
-  ).current;
+  // ── Pulsating recording indicator animation ─────────────────────────────
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (recordingState !== 'recording') return;
-
-    const anims = barAnimValues.map((val, i) =>
-      Animated.loop(
+    if (recordingState === 'recording') {
+      const anim = Animated.loop(
         Animated.sequence([
-          Animated.timing(val, {
-            toValue: 0.3 + (waveform[i] || 0) * 0.7,
-            duration: ANIMATION.fast + Math.random() * 200,
+          Animated.timing(pulseAnim, {
+            toValue: 1.3,
+            duration: 1200,
             easing: Easing.inOut(Easing.ease),
-            useNativeDriver: false,
+            useNativeDriver: true,
           }),
-          Animated.timing(val, {
-            toValue: 0.1 + Math.random() * 0.15,
-            duration: ANIMATION.fast + Math.random() * 180,
+          Animated.timing(pulseAnim, {
+            toValue: 1.0,
+            duration: 1200,
             easing: Easing.inOut(Easing.ease),
-            useNativeDriver: false,
+            useNativeDriver: true,
           }),
         ])
-      )
-    );
-    Animated.parallel(anims).start();
-    return () => anims.forEach((a) => a.stop());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recordingState, waveform]);
+      );
+      anim.start();
+      return () => anim.stop();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [recordingState, pulseAnim]);
 
   useEffect(() => {
     if (showReferenceModal) {
@@ -224,13 +245,7 @@ export const RecordingScreen: React.FC = () => {
     );
   };
 
-  const formatTime = (seconds: number): string => {
-    const m = Math.floor(seconds / 60)
-      .toString()
-      .padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
+
 
   const { total, checkedTotal } = noteFormatter.calculateFinancialTotals(checklistItems);
   const remainingTotal = total - checkedTotal;
@@ -389,35 +404,22 @@ export const RecordingScreen: React.FC = () => {
 
       {/* ── Timer ───────────────────────────────────────────────────────── */}
       <View style={styles.timerContainer}>
-        <Heading
-          size="display"
-          style={[styles.timerText, { color: colors.foreground }]}
-        >
-          {formatTime(elapsedTime)}
-        </Heading>
+        <TimerDisplay themeMode={themeMode} />
       </View>
 
-      {/* ── Animated waveform ─────────────────────────────────────────────── */}
-      <View style={styles.waveformContainer}>
-        <View style={styles.waveformRow}>
-          {barAnimValues.map((val, idx) => (
-            <Animated.View
-              key={idx}
-              style={[
-                styles.waveBar,
-                {
-                  backgroundColor:
-                    recordingState === 'recording' ? colors.foreground : colors.border,
-                  height: val.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [4, 80],
-                  }),
-                  opacity: recordingState === 'recording' ? 1 : 0.4,
-                },
-              ]}
-            />
-          ))}
-        </View>
+      {/* ── Pulsating recording indicator ─────────────────────────────────── */}
+      <View style={styles.statusVisualContainer}>
+        <Animated.View
+          style={[
+            styles.pulseOuter,
+            {
+              borderColor: colors.foreground,
+              transform: [{ scale: pulseAnim }],
+              opacity: recordingState === 'recording' ? 0.3 : 0.1,
+            },
+          ]}
+        />
+        <View style={[styles.pulseInner, { backgroundColor: colors.foreground }]} />
       </View>
 
       {/* ── Voice commands helper guide ───────────────────────────────────── */}
@@ -711,23 +713,23 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     letterSpacing: 2,
   },
-  // ── Waveform ──────────────────────────────────────────────────────────────
-  waveformContainer: {
+  // ── Pulsating indicator styles ─────────────────────────────────────────────
+  statusVisualContainer: {
     height: 90,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  waveformRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: SPACING.sm,
+  pulseOuter: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    position: 'absolute',
   },
-  waveBar: {
-    width: 5,
-    borderRadius: 2.5,
-    marginHorizontal: 1,
+  pulseInner: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
   },
   // ── Voice Command Guide ───────────────────────────────────────────────────
   guideContainer: {

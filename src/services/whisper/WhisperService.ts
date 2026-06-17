@@ -2,9 +2,9 @@ import { initWhisper, WhisperContext } from 'whisper.rn';
 import RNFS from 'react-native-fs';
 import { Buffer } from 'buffer';
 
-// ggml-small.en-q5_1 — fastest accurate model under 200MB for mobile.
-// 5-bit quantized English-only small model: ~190MB, ~4-5x faster than large.
-const MODEL_NAME = 'ggml-small.en-q5_1.bin';
+// ggml-base.en-q5_1 — fastest accurate model (~60MB) for mobile.
+// 5-bit quantized English-only base model: ~60MB, ~2x faster than small model.
+const MODEL_NAME = 'ggml-base.en-q5_1.bin';
 const MODEL_URL = `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${MODEL_NAME}`;
 
 // Chunk large WAV files into segments so the offline model doesn't load the entire
@@ -148,6 +148,7 @@ class WhisperServiceClass {
       initialPrompt:
         'A clean, well-punctuated transcription with correct capitalization, periods, commas, and numeric lists.',
       beamSize: 5,
+      threads: 2, // Limit CPU threads to prevent UI/JS lag
     };
 
     // Chunk large recordings to avoid memory pressure on mobile

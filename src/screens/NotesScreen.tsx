@@ -77,8 +77,8 @@ export const NotesScreen: React.FC = () => {
   const handleDelete = useCallback((id: string, title: string) => {
     triggerHaptic('impact');
     Alert.alert(
-      'Delete capture',
-      `"${title}" will be moved to trash.`,
+      'Delete Capture',
+      `Are you sure you want to delete "${title}"? This will permanently delete all note contents and audio recordings to free up space.`,
       [
         { text: 'Keep', style: 'cancel' },
         {

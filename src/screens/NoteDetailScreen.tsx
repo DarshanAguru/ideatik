@@ -12,7 +12,7 @@ import { AudioPlayerService } from '../services/audio/AudioPlayerService';
 import { WhisperService } from '../services/whisper/WhisperService';
 import { BackgroundTaskManager } from '../services/background/BackgroundTaskManager';
 // Deleted unused types import
-import { Play, Pause, ChevronLeft, Edit3, Check, CheckSquare, Square, ExternalLink, Share2, Trash2, Plus, ChevronDown, ChevronUp, Lock, Unlock } from 'lucide-react-native';
+import { Play, Pause, ChevronLeft, Edit3, Check, CheckSquare, Square, ExternalLink, Share2, Trash2, Plus, ChevronDown, ChevronUp, Lock, Unlock, Settings, X } from 'lucide-react-native';
 import { triggerHaptic } from '../utils/haptics';
 import { authenticate } from '../utils/localAuth';
 import { StructuredNoteService } from '../services/notes/StructuredNoteService';
@@ -21,7 +21,7 @@ import { TagBadge } from '../components/TagBadge';
 import { useTagsStore } from '../features/tags/tagsStore';
 const { width } = Dimensions.get('window');
 
-const ChecklistItemRow = ({ item, colors, onToggle, onDelete, onUpdate, isFinance, onAddNext }: any) => {
+const ChecklistItemRow = ({ item, colors, onToggle, onDelete, onUpdate, isFinance, onAddNext, onFocus }: any) => {
   const [localText, setLocalText] = useState(item.text);
   const [localAmount, setLocalAmount] = useState(item.amount !== undefined ? String(item.amount) : '');
 
@@ -60,6 +60,7 @@ const ChecklistItemRow = ({ item, colors, onToggle, onDelete, onUpdate, isFinanc
         value={localText}
         onChangeText={setLocalText}
         onBlur={handleBlur}
+        onFocus={onFocus}
         placeholder="List item"
         placeholderTextColor={colors.placeholder}
         returnKeyType="next"
@@ -76,6 +77,7 @@ const ChecklistItemRow = ({ item, colors, onToggle, onDelete, onUpdate, isFinanc
           value={localAmount}
           onChangeText={setLocalAmount}
           onBlur={handleBlur}
+          onFocus={onFocus}
           keyboardType="numeric"
           placeholder="₹0.00"
           placeholderTextColor={colors.placeholder}
@@ -98,13 +100,14 @@ export const NoteDetailScreen: React.FC = () => {
   const colors = COLORS[themeMode];
 
   const { toggleChecklistItem, loadNotes } = useNotesStore();
-  const { tags, loadTags, createTag, getTagsByIds } = useTagsStore();
+  const { tags, loadTags, createTag, deleteTag, getTagsByIds } = useTagsStore();
 
   const [note, setNote] = useState<any>(null);
   const [noteTitle, setNoteTitle] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [bodyText, setBodyText] = useState('');
   const [newTagName, setNewTagName] = useState('');
+  const [showManageTagsModal, setShowManageTagsModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [detailTab, setDetailTab] = useState<'preview' | 'transcript'>('preview');
   const [backlinks, setBacklinks] = useState<any[]>([]);
@@ -115,6 +118,7 @@ export const NoteDetailScreen: React.FC = () => {
   const [currentPendingRef, setCurrentPendingRef] = useState<string | null>(null);
   const [pendingRefSearch, setPendingRefSearch] = useState('');
   const [ignoredPendingRefs, setIgnoredPendingRefs] = useState<string[]>([]);
+  const [processedPendingRefs, setProcessedPendingRefs] = useState<string[]>([]);
 
   // Audio player state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -157,6 +161,7 @@ export const NoteDetailScreen: React.FC = () => {
 
   const noteRef = useRef<any>(null);
   const addItemInputRef = useRef<any>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   // Keep noteRef in sync without causing re-renders
   useEffect(() => {
@@ -166,6 +171,8 @@ export const NoteDetailScreen: React.FC = () => {
   useEffect(() => {
     fetchNoteDetails();
     loadTags();
+    setIgnoredPendingRefs([]);
+    setProcessedPendingRefs([]);
     return () => {
       AudioPlayerService.release();
       if (progressInterval.current) clearInterval(progressInterval.current);
@@ -193,14 +200,14 @@ export const NoteDetailScreen: React.FC = () => {
   useEffect(() => {
     if (structuredNote) {
       const activePending = structuredNote.pendingReferenceCommands.filter(
-        (ref) => !ignoredPendingRefs.includes(ref)
+        (ref) => !ignoredPendingRefs.includes(ref) && !processedPendingRefs.includes(ref)
       );
       if (activePending.length > 0 && !currentPendingRef) {
         setCurrentPendingRef(activePending[0]);
         setPendingRefSearch('');
       }
     }
-  }, [structuredNote, currentPendingRef, ignoredPendingRefs]);
+  }, [structuredNote, currentPendingRef, ignoredPendingRefs, processedPendingRefs]);
 
   const authenticateNote = async (): Promise<boolean> => {
     try {
@@ -376,8 +383,24 @@ export const NoteDetailScreen: React.FC = () => {
   };
 
   // Note Lifecycle Saves
-  const handleSaveMarkdown = async () => {
+  const handleSaveContent = async () => {
     if (!note) return;
+
+    const title = noteTitle ? noteTitle.trim() : '';
+    const isDefault = title === '' || 
+      title.toLowerCase() === 'untitled' ||
+      title.toLowerCase() === 'untitled note' || 
+      title.toLowerCase() === 'untitled capture' || 
+      title.toLowerCase() === 'voice capture' || 
+      /^(note|list|finance-list)-\d+$/i.test(title);
+
+    if (note.type === 'note' && bodyText.trim() === '' && isDefault) {
+      console.log('Ideatik: Deleting empty untitled note. Purging note and navigating back.');
+      await NoteRepository.purge(note.id);
+      await loadNotes();
+      navigation.goBack();
+      return;
+    }
 
     const structured = StructuredNoteService.fromNote(note);
     
@@ -395,7 +418,7 @@ export const NoteDetailScreen: React.FC = () => {
 
     const nextStructured = StructuredNoteService.normalize({
       ...structured,
-      title: noteTitle.trim() || 'Untitled',
+      title: title || 'Untitled',
       bodyBlocks: [bodyText],
       referenceIds: nextReferences,
       pendingReferenceCommands: newPending,
@@ -574,6 +597,21 @@ export const NoteDetailScreen: React.FC = () => {
     if (!note) return;
     const structured = StructuredNoteService.fromNote(note);
     const newItems = StructuredNoteService.items(structured).filter((item) => item.id !== itemId);
+    
+    const title = note.title ? note.title.trim() : '';
+    const isDefault = title === '' || 
+      title.toLowerCase() === 'untitled capture' || 
+      title.toLowerCase() === 'voice capture' || 
+      /^(note|list|finance-list)-\d+$/i.test(title);
+
+    if (newItems.length === 0 && isDefault) {
+      console.log('Ideatik: Deleting last checklist item of untitled list. Purging note and navigating back.');
+      await NoteRepository.purge(note.id);
+      await loadNotes();
+      navigation.goBack();
+      return;
+    }
+
     const nextStructured = StructuredNoteService.normalize({
       ...structured,
       // Route to the correct list — finance type uses financeItems, list type uses listItems
@@ -698,6 +736,12 @@ export const NoteDetailScreen: React.FC = () => {
             onUpdate={handleUpdateChecklistItem}
             isFinance={note.type === 'finance'}
             onAddNext={() => addItemInputRef.current?.focus()}
+            onFocus={() => {
+              // KeyboardAvoidingView will resize, let's do a tiny delay scroll
+              setTimeout(() => {
+                // If it's near the bottom, scrollToEnd. Otherwise, the keyboard avoiding view will handle layout adjustment.
+              }, 100);
+            }}
           />
         ))}
 
@@ -713,6 +757,11 @@ export const NoteDetailScreen: React.FC = () => {
             onChangeText={setNewItemText}
             returnKeyType="done"
             blurOnSubmit={false}
+            onFocus={() => {
+              setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+              }, 100);
+            }}
             onSubmitEditing={() => {
               if (newItemText.trim()) {
                 handleAddChecklistItem(newItemText, note.type === 'finance' ? parseFloat(newItemAmount) || 0 : undefined);
@@ -732,6 +781,11 @@ export const NoteDetailScreen: React.FC = () => {
               onChangeText={setNewItemAmount}
               keyboardType="numeric"
               returnKeyType="done"
+              onFocus={() => {
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 100);
+              }}
               onSubmitEditing={() => {
                 if (newItemText.trim()) {
                   handleAddChecklistItem(newItemText, parseFloat(newItemAmount) || 0);
@@ -783,6 +837,11 @@ export const NoteDetailScreen: React.FC = () => {
                     onDelete={handleDeleteChecklistItem}
                     onUpdate={handleUpdateChecklistItem}
                     isFinance={note.type === 'finance'}
+                    onFocus={() => {
+                      setTimeout(() => {
+                        // KeyboardAvoidingView will resize
+                      }, 100);
+                    }}
                   />
                 ))}
               </View>
@@ -890,6 +949,15 @@ export const NoteDetailScreen: React.FC = () => {
           <TouchableOpacity onPress={handleCreateTag} style={[styles.smallPillButton, { borderColor: colors.border }]}>
             <Caption size="sm" style={{ color: colors.foreground, fontWeight: '600' }}>Add</Caption>
           </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => setShowManageTagsModal(true)} 
+            style={[
+              styles.smallPillButton, 
+              { borderColor: colors.border, paddingHorizontal: SPACING.sm, width: 38, height: 38 }
+            ]}
+          >
+            <Settings size={16} color={colors.foreground} />
+          </TouchableOpacity>
         </View>
 
         {availableTags.length > 0 ? (
@@ -914,12 +982,16 @@ export const NoteDetailScreen: React.FC = () => {
     
     const refToResolve = specificRef || pending[0];
     if (refToResolve) {
+      setProcessedPendingRefs((prev) => [...prev, refToResolve]);
       const idx = pending.indexOf(refToResolve);
       if (idx > -1) {
         pending.splice(idx, 1);
       }
     } else {
-      pending.shift();
+      const shifted = pending.shift();
+      if (shifted) {
+        setProcessedPendingRefs((prev) => [...prev, shifted]);
+      }
     }
     
     const nextReferences = [
@@ -946,6 +1018,7 @@ export const NoteDetailScreen: React.FC = () => {
 
   const handleSkipPendingReference = async () => {
     if (!note || !currentPendingRef) return;
+    setProcessedPendingRefs((prev) => [...prev, currentPendingRef]);
     const structured = StructuredNoteService.fromNote(note);
     const pending = [...structured.pendingReferenceCommands];
     
@@ -973,6 +1046,7 @@ export const NoteDetailScreen: React.FC = () => {
   const handleSkipAllPendingReferences = async () => {
     if (!note) return;
     const structured = StructuredNoteService.fromNote(note);
+    setProcessedPendingRefs((prev) => [...prev, ...structured.pendingReferenceCommands]);
     const nextStructured = StructuredNoteService.normalize({
       ...structured,
       pendingReferenceCommands: [],
@@ -1029,7 +1103,7 @@ export const NoteDetailScreen: React.FC = () => {
         </Heading>
 
         {isEditing ? (
-          <TouchableOpacity onPress={handleSaveMarkdown} style={styles.actionButton}>
+          <TouchableOpacity onPress={handleSaveContent} style={styles.actionButton}>
             <Check size={20} color={colors.foreground} />
           </TouchableOpacity>
         ) : (
@@ -1119,7 +1193,7 @@ export const NoteDetailScreen: React.FC = () => {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
           <TextInput
-            style={[styles.markdownEditor, { color: colors.foreground, borderColor: colors.border }]}
+            style={[styles.contentEditor, { color: colors.foreground, borderColor: colors.border }]}
             multiline
             autoFocus
             value={bodyText}
@@ -1130,7 +1204,11 @@ export const NoteDetailScreen: React.FC = () => {
           />
         </KeyboardAvoidingView>
       ) : (
-        <View style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
+        >
           {/* Segment Selector Tabs */}
           <View style={styles.tabsContainer}>
             <TouchableOpacity
@@ -1167,7 +1245,12 @@ export const NoteDetailScreen: React.FC = () => {
             ) : null}
           </View>
 
-          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             <TextInput
               style={[
                 styles.detailTitleInput,
@@ -1353,7 +1436,7 @@ export const NoteDetailScreen: React.FC = () => {
             )}
             <View style={{ height: SPACING.huge }} />
           </ScrollView>
-        </View>
+        </KeyboardAvoidingView>
       )}
       <ShareOptionsModal
         visible={showShareModal}
@@ -1472,6 +1555,98 @@ export const NoteDetailScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showManageTagsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowManageTagsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalSheet,
+              { backgroundColor: colors.card, borderColor: colors.border, maxHeight: '80%' },
+            ]}
+          >
+            <View style={styles.modalHandle} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md }}>
+              <Heading size="md" style={{ color: colors.foreground }}>
+                Manage Tags
+              </Heading>
+              <TouchableOpacity onPress={() => setShowManageTagsModal(false)}>
+                <X size={20} color={colors.foreground} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
+              {tags.map((tag) => (
+                <View
+                  key={tag.id}
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingVertical: SPACING.md,
+                    borderBottomWidth: StyleSheet.hairlineWidth,
+                    borderBottomColor: colors.border,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
+                    <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: tag.color }} />
+                    <Body size="sm" style={{ color: colors.foreground, fontWeight: TYPOGRAPHY.weights.medium }}>
+                      {tag.name}
+                    </Body>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      Alert.alert(
+                        'Delete Tag',
+                        `Are you sure you want to delete the tag "${tag.name}"? It will be removed from all notes.`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Delete',
+                            style: 'destructive',
+                            onPress: async () => {
+                              triggerHaptic('success');
+                              await deleteTag(tag.id);
+                              await fetchNoteDetails();
+                            },
+                          },
+                        ]
+                      );
+                    }}
+                    style={{ padding: SPACING.xs }}
+                  >
+                    <Trash2 size={16} color={colors.error} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {tags.length === 0 ? (
+                <Caption
+                  size="sm"
+                  style={{ color: colors.muted, textAlign: 'center', marginTop: SPACING.xl }}
+                >
+                  No tags created yet.
+                </Caption>
+              ) : null}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.modalClose, { borderColor: colors.border, marginTop: SPACING.md }]}
+              onPress={() => setShowManageTagsModal(false)}
+              activeOpacity={0.8}
+            >
+              <Body size="sm" style={{ color: colors.foreground, fontWeight: TYPOGRAPHY.weights.semibold }}>
+                Close
+              </Body>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1640,7 +1815,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginBottom: SPACING.xl,
   },
-  markdownEditor: {
+  contentEditor: {
     flex: 1,
     borderWidth: 1,
     borderRadius: SPACING.sm,

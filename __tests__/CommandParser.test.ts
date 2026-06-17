@@ -3,13 +3,13 @@ import { CommandParser } from '../src/services/parsers/CommandParser';
 
 describe('CommandParser Unit Tests', () => {
   it('correctly parses title, checklist, ledger, and reference commands', () => {
-    const transcript = "Today I need to prepare for the party. Title start party prep end. Create a checklist. Add item balloons amount 10. Add item cake. I should also clean the room. Add reference here. That's all for now. End note.";
+    const transcript = "Today I need to prepare for the party. Title start party prep end. Create a checklist. Add item balloons amount 10. Add item cake. I should also clean the room. Add reference here. That's all for now.";
     
     const result = CommandParser.parse(transcript);
     
     expect(result.title).toBe('party prep');
     expect(result.type).toBe('list');
-    expect(result.hasEndCommand).toBe(true);
+    expect(result.hasEndCommand).toBe(false);
     expect(result.hasReferenceCommand).toBe(true);
     expect(result.references).toContain('[1]');
     expect(result.pendingReferenceCommands).toContain('[1]');

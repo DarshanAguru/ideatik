@@ -129,7 +129,7 @@ export const SettingsScreen: React.FC = () => {
           <View style={[styles.settingRow, { borderBottomColor: colors.border, flexDirection: 'column', alignItems: 'flex-start', borderBottomWidth: 0 }]}>
             <View style={[styles.settingInfo, { marginBottom: SPACING.md }]}>
               <Body size="md" style={styles.settingLabel}>
-                Offline Transcription Model (small.en-q5_1, ~190MB)
+                Offline Transcription Model (base.en-q5_1, ~60MB)
               </Body>
               <Caption size="sm" style={{ marginTop: 4, lineHeight: 18 }}>
                 {modelExists
@@ -177,7 +177,7 @@ export const SettingsScreen: React.FC = () => {
                 onPress={handleDownloadModel}
               >
                 <Body size="sm" style={{ color: colors.background, fontWeight: '700' }}>
-                  Download Offline Model (~190MB)
+                  Download Offline Model (~60MB)
                 </Body>
               </TouchableOpacity>
             )}

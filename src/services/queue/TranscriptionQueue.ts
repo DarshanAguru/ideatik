@@ -107,6 +107,22 @@ class TranscriptionQueueClass {
   }
 
   /**
+   * Remove any queued items belonging to a note ID
+   */
+  async removeByNoteId(noteId: string): Promise<void> {
+    let changed = false;
+    for (const [key, item] of this.queue.entries()) {
+      if (item.noteId === noteId) {
+        this.queue.delete(key);
+        changed = true;
+      }
+    }
+    if (changed) {
+      await this.saveQueueToStorage();
+    }
+  }
+
+  /**
    * Get queue length
    */
   get length(): number {

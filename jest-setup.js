@@ -133,3 +133,18 @@ jest.mock('react-native-tts', () => ({
   setDefaultPitch: jest.fn(),
   voices: jest.fn(() => Promise.resolve([])),
 }));
+
+// Mock react-native-background-actions
+jest.mock('react-native-background-actions', () => ({
+  start: jest.fn(() => Promise.resolve()),
+  stop: jest.fn(() => Promise.resolve()),
+  isRunning: jest.fn(() => false),
+  updateNotification: jest.fn(() => Promise.resolve()),
+}));
+
+// Mock @react-native-clipboard/clipboard
+jest.mock('@react-native-clipboard/clipboard', () => ({
+  setString: jest.fn(),
+  getString: jest.fn(() => Promise.resolve('')),
+  hasString: jest.fn(() => Promise.resolve(false)),
+}));

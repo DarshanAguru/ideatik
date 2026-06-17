@@ -3,6 +3,7 @@
  */
 
 import { Platform, ToastAndroid } from 'react-native';
+import BackgroundService from 'react-native-background-actions';
 import { TranscriptionQueue, QueuedTranscription } from '../queue/TranscriptionQueue';
 import { WhisperService } from '../whisper/WhisperService';
 import { NoteRepository } from '../database/NoteRepository';
@@ -11,61 +12,92 @@ import { StructuredNote } from '../parsers/types';
 import { StructuredNoteService } from '../notes/StructuredNoteService';
 import { useNotesStore } from '../../features/notes/notesStore';
 
+const sleep = (time: number) => new Promise<void>((resolve) => setTimeout(() => resolve(), time));
+
 class BackgroundTaskManagerClass {
   private isProcessing = false;
-  private processInterval: any = null;
 
   async initialize(): Promise<void> {
     await TranscriptionQueue.initialize();
   }
 
   /**
+   * The background task runner loop on JS side.
+   */
+  private async runJSProcessingLoop(): Promise<void> {
+    const delay = 2000;
+    console.log('BackgroundTaskManager: JS processing loop started');
+
+    while (this.isProcessing) {
+      try {
+        const modelExists = await WhisperService.checkModelExists();
+        if (!modelExists) {
+          console.log('BackgroundTaskManager: Model not downloaded. Waiting...');
+          await sleep(delay);
+          continue;
+        }
+
+        // If the user is currently recording or has paused the recording, suspend background transcription to prevent CPU hogging.
+        let isUserRecording = false;
+        try {
+          const { useRecordingStore } = require('../../features/recording/recordingStore');
+          const recState = useRecordingStore.getState().recordingState;
+          if (recState === 'recording' || recState === 'paused' || recState === 'transcribing') {
+            isUserRecording = true;
+          }
+        } catch (e) {
+          // Ignore any import/initialization issues
+        }
+
+        if (isUserRecording) {
+          console.log('BackgroundTaskManager: User is actively recording or transcribing active capture. Suspending background queue.');
+          await sleep(delay);
+          continue;
+        }
+
+        const pending = TranscriptionQueue.getNextPending();
+        if (pending) {
+          await this.processQueueItem(pending);
+        } else {
+          if (TranscriptionQueue.length > 0) {
+            await TranscriptionQueue.clearCompleted();
+          }
+          console.log('BackgroundTaskManager: Queue empty. Stopping JS processing loop.');
+          break;
+        }
+      } catch (err) {
+        console.error('BackgroundTaskManager: Error in JS background loop:', err);
+      }
+      await sleep(delay);
+    }
+    this.isProcessing = false;
+  }
+
+  /**
    * Start background processing of transcription queue
    */
-  startProcessing(intervalMs: number = 3000): void {
+  startProcessing(): void {
     if (this.isProcessing) {
-      console.warn('Background processing already running');
+      console.log('Background transcription processing already running');
+      return;
+    }
+
+    const pending = TranscriptionQueue.getNextPending();
+    if (!pending) {
       return;
     }
 
     this.isProcessing = true;
-    console.log('Background transcription processing started (offline-only)');
+    console.log('Background transcription processing started (JS loop)');
 
-    this.processInterval = setInterval(async () => {
-      const modelExists = await WhisperService.checkModelExists();
-      if (!modelExists) {
-        console.log('Ideatik: Offline model not downloaded. Deferring queue processing...');
-        return;
-      }
-
-      const pending = TranscriptionQueue.getNextPending();
-      if (pending) {
-        await this.processQueueItem(pending);
-      } else if (TranscriptionQueue.pendingCount === 0 && TranscriptionQueue.length > 0) {
-        await TranscriptionQueue.clearCompleted();
-      }
-    }, intervalMs);
-
-    // Also attempt to process immediately on start
-    (async () => {
-      const modelExists = await WhisperService.checkModelExists();
-      if (modelExists) {
-        const pending = TranscriptionQueue.getNextPending();
-        if (pending) {
-          await this.processQueueItem(pending);
-        }
-      }
-    })();
+    // Kick off the JS processing loop asynchronously
+    this.runJSProcessingLoop();
   }
 
   /**
    * Stop background processing
    */
   stopProcessing(): void {
-    if (this.processInterval) {
-      clearInterval(this.processInterval);
-      this.processInterval = null;
-    }
     this.isProcessing = false;
     console.log('Background transcription processing stopped');
   }
@@ -91,7 +123,8 @@ class BackgroundTaskManagerClass {
       checked: i.checked,
     }));
 
-    const parsed = CommandParser.parse(rawText, parserItems);
+    // Pass the existing note type so it parses checklist/finance without "add" prefixes
+    const parsed = CommandParser.parse(rawText, parserItems, note.type);
 
     const mergedRefTitles = [...(note.references || [])];
     parsed.references.forEach((ref) => {
