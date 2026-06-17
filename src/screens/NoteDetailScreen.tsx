@@ -440,24 +440,42 @@ export const NoteDetailScreen: React.FC = () => {
     await loadNotes();
   };
 
-  const handleUpdateTitle = async (newTitle: string) => {
+  const handleUpdateTitle = (newTitle: string) => {
     setNoteTitle(newTitle);
     if (!note) return;
 
     const structured = StructuredNoteService.fromNote(note);
-    const nextStructured = StructuredNoteService.normalize({
+    const nextStructured = {
       ...structured,
-      title: newTitle.trim() || 'Untitled',
-    });
+      title: newTitle || 'Untitled',
+    };
 
     const updatedNote = {
       ...note,
-      title: newTitle.trim() || 'Untitled',
+      title: newTitle || 'Untitled',
       structuredContentJson: StructuredNoteService.toJson(nextStructured),
       markdownContent: StructuredNoteService.toMarkdown(nextStructured),
     };
     
     setNote(updatedNote);
+  };
+
+  const handleSaveTitle = async () => {
+    if (!note) return;
+    const titleToSave = noteTitle.trim() || 'Untitled';
+
+    const structured = StructuredNoteService.fromNote(note);
+    const nextStructured = StructuredNoteService.normalize({
+      ...structured,
+      title: titleToSave,
+    });
+
+    const updatedNote = {
+      ...note,
+      title: titleToSave,
+      structuredContentJson: StructuredNoteService.toJson(nextStructured),
+      markdownContent: StructuredNoteService.toMarkdown(nextStructured),
+    };
 
     await NoteRepository.save(updatedNote);
     await loadNotes();
@@ -1260,6 +1278,7 @@ export const NoteDetailScreen: React.FC = () => {
               ]}
               value={noteTitle}
               onChangeText={handleUpdateTitle}
+              onBlur={handleSaveTitle}
               placeholder="Capturing Elegance..."
               placeholderTextColor={colors.placeholder}
             />

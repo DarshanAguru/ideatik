@@ -73,52 +73,6 @@ class NoteRepositoryClass {
 
       const type = note.type || (existingNote ? existingNote.type : (structured.type || 'note'));
 
-      // Validate note content: must have text/audio for note, or items for list/finance.
-      // We bypass content validation if the note is brand new (to allow creation),
-      // and we only purge empty notes if their title is still one of the default/untitled formats.
-      let shouldSave = true;
-      const isNewNote = !existingNote;
-      const isNoteDeleted = note.isDeleted || (existingNote && existingNote.isDeleted);
-      const isTranscribing = [
-        'queued',
-        'processing',
-        'processing_online',
-        'processing_offline'
-      ].includes(
-        note.transcriptionStatus || (existingNote ? existingNote.transcriptionStatus : 'idle')
-      );
-
-      if (!isNewNote && !isNoteDeleted && !isTranscribing) {
-        const currentTitle = note.title || (existingNote ? existingNote.title : '');
-        const hasAudio = !!finalAudioUri;
-        if (type === 'list' || type === 'finance') {
-          const itemCount = structuredNote.items ? structuredNote.items.length : 0;
-          if (itemCount === 0 && !hasAudio && isDefaultTitle(currentTitle)) {
-            shouldSave = false;
-          }
-        } else {
-          const hasText =
-            (note.transcript && note.transcript.trim().length > 0) ||
-            (structuredNote.bodyText && structuredNote.bodyText.trim().length > 0);
-          if (!hasText && !hasAudio && isDefaultTitle(currentTitle)) {
-            shouldSave = false;
-          }
-        }
-      }
-
-      if (!shouldSave) {
-        console.log(`NoteRepository: Note ${note.id} has no valid content. Purging/deleting note.`);
-        if (existingNote) {
-          await this.purge(note.id);
-          try {
-            const { useNotesStore } = require('../../features/notes/notesStore');
-            useNotesStore.getState().loadNotes();
-          } catch (err) {
-            // ignore circular dep
-          }
-        }
-        return;
-      }
 
       const title = await this.resolveUniqueTitle(note.id, note.title || structured.title, type);
       
