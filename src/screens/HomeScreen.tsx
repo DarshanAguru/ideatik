@@ -520,7 +520,7 @@ export const HomeScreen: React.FC = () => {
                           fontWeight: '700',
                         }}
                       >
-                        Net: {total >= 0 ? '+' : ''}{total.toFixed(0)}
+                        Net: {total >= 0 ? '+' : '-'}₹{Math.abs(total).toFixed(0)}
                       </Caption>
                     </View>
                   );
@@ -545,8 +545,8 @@ export const HomeScreen: React.FC = () => {
                         marginLeft: 4,
                       }}
                     >
-                      {financeItem.amount && financeItem.amount >= 0 ? '+' : ''}
-                      {financeItem.amount !== undefined ? financeItem.amount.toFixed(0) : ''}
+                      {financeItem.amount && financeItem.amount >= 0 ? '+₹' : '-₹'}
+                      {financeItem.amount !== undefined ? Math.abs(financeItem.amount).toFixed(0) : ''}
                     </Caption>
                   </View>
                 ))}

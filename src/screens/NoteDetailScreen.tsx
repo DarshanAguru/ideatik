@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { StyleSheet, View, TextInput, ScrollView, TouchableOpacity, Alert, Dimensions, ActivityIndicator, Modal, Text, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, View, TextInput, ScrollView, TouchableOpacity, Alert, Dimensions, ActivityIndicator, Modal, Text, KeyboardAvoidingView, Platform, PanResponder, Animated, LayoutAnimation, UIManager } from 'react-native';
 import Tts from 'react-native-tts';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { ScreenWrapper } from '../components/ScreenWrapper';
@@ -11,7 +11,7 @@ import { NoteRepository } from '../services/database/NoteRepository';
 import { AudioPlayerService } from '../services/audio/AudioPlayerService';
 import { BackgroundTaskManager } from '../services/background/BackgroundTaskManager';
 // Deleted unused types import
-import { Play, Pause, ChevronLeft, Edit3, Check, CheckSquare, Square, ExternalLink, Share2, Trash2, Plus, ChevronDown, ChevronUp, Lock, Unlock, Settings, X, Pin } from 'lucide-react-native';
+import { Play, Pause, ChevronLeft, Edit3, Check, CheckSquare, Square, ExternalLink, Share2, Trash2, Plus, ChevronDown, ChevronUp, Lock, Unlock, Settings, X, Pin, GripVertical } from 'lucide-react-native';
 import { triggerHaptic } from '../utils/haptics';
 import { authenticate } from '../utils/localAuth';
 import { StructuredNoteService } from '../services/notes/StructuredNoteService';
@@ -20,7 +20,26 @@ import { TagBadge } from '../components/TagBadge';
 import { useTagsStore } from '../features/tags/tagsStore';
 const { width } = Dimensions.get('window');
 
-const ChecklistItemRow = ({ item, colors, onToggle, onDelete, onUpdate, isFinance, onAddNext, onFocus }: any) => {
+if (Platform.OS === 'android') {
+  if (UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+  }
+}
+
+const ChecklistItemRow = ({
+  item,
+  colors,
+  onToggle,
+  onDelete,
+  onUpdate,
+  isFinance,
+  onAddNext,
+  onFocus,
+  panHandlers,
+  isDragging,
+  dragPanY,
+  onLayout,
+}: any) => {
   const [localText, setLocalText] = useState(item.text);
   const [localAmount, setLocalAmount] = useState(item.amount !== undefined ? String(item.amount) : '');
 
@@ -52,8 +71,26 @@ const ChecklistItemRow = ({ item, colors, onToggle, onDelete, onUpdate, isFinanc
     }
   };
 
+  const animatedStyle = {
+    transform: [
+      { translateY: isDragging ? dragPanY : 0 },
+      { scale: isDragging ? 1.03 : 1 }
+    ],
+    zIndex: isDragging ? 999 : 1,
+    elevation: isDragging ? 5 : 0,
+    backgroundColor: isDragging ? colors.card : 'transparent',
+    borderRadius: isDragging ? 8 : 0,
+  };
+
   return (
-    <View style={styles.keepRow}>
+    <Animated.View
+      onLayout={onLayout}
+      style={[styles.keepRow, animatedStyle]}
+    >
+      <View {...panHandlers} style={styles.dragHandle}>
+        <GripVertical size={16} color={colors.muted} />
+      </View>
+
       <TouchableOpacity onPress={() => onToggle(item.id, item.checked)} style={styles.keepCheck}>
         {item.checked ? (
           <CheckSquare size={18} color={colors.foreground} />
@@ -94,7 +131,7 @@ const ChecklistItemRow = ({ item, colors, onToggle, onDelete, onUpdate, isFinanc
       <TouchableOpacity onPress={() => onDelete(item.id)} style={styles.keepDelete}>
         <Trash2 size={16} color={colors.muted} />
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 };
 
@@ -189,6 +226,108 @@ export const NoteDetailScreen: React.FC = () => {
   const noteRef = useRef<any>(null);
   const addItemInputRef = useRef<any>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  // Drag-and-drop state & refs for checklist reordering
+  const [activeDragItemId, setActiveDragItemId] = useState<string | null>(null);
+  const activeDragItemIdRef = useRef<string | null>(null);
+  const dragPanY = useRef(new Animated.Value(0)).current;
+  const itemLayouts = useRef<{ [id: string]: { y: number; h: number } }>({});
+
+  const panRespondersRef = useRef<{ [id: string]: any }>({});
+  const getPanResponder = (id: string, isChecked: boolean) => {
+    if (!panRespondersRef.current[id]) {
+      panRespondersRef.current[id] = PanResponder.create({
+        onStartShouldSetPanResponder: () => activeDragItemIdRef.current === id,
+        onMoveShouldSetPanResponder: () => activeDragItemIdRef.current === id,
+        onPanResponderGrant: () => {
+          triggerHaptic('impact');
+          activeDragItemIdRef.current = id;
+          setActiveDragItemId(id);
+          dragPanY.setValue(0);
+        },
+        onPanResponderMove: (evt, gestureState) => {
+          dragPanY.setValue(gestureState.dy);
+        },
+        onPanResponderRelease: async (evt, gestureState) => {
+          const draggingId = activeDragItemIdRef.current;
+          if (draggingId !== id) return;
+
+          const startLayout = itemLayouts.current[draggingId];
+          const currentNote = noteRef.current;
+          if (startLayout && currentNote) {
+            const touchY = startLayout.y + gestureState.dy + startLayout.h / 2;
+
+            const structured = StructuredNoteService.fromNote(currentNote);
+            const items = StructuredNoteService.items(structured);
+
+            let closestId = null;
+            let minDistance = Infinity;
+            for (const [itemId, layout] of Object.entries(itemLayouts.current)) {
+              if (itemId === draggingId) continue;
+
+              const targetItem = items.find((it) => it.id === itemId);
+              if (!targetItem || targetItem.checked !== isChecked) continue;
+
+              const centerY = layout.y + layout.h / 2;
+              const dist = Math.abs(touchY - centerY);
+              if (dist < minDistance) {
+                minDistance = dist;
+                closestId = itemId;
+              }
+            }
+
+            if (closestId) {
+              const fromIndex = items.findIndex((it) => it.id === draggingId);
+              const toIndex = items.findIndex((it) => it.id === closestId);
+
+              if (fromIndex !== -1 && toIndex !== -1) {
+                const nextItems = [...items];
+                const [movedItem] = nextItems.splice(fromIndex, 1);
+                nextItems.splice(toIndex, 0, movedItem);
+
+                const nextStructured = {
+                  ...structured,
+                  listItems: structured.type === 'finance' ? structured.listItems : nextItems,
+                  financeItems: structured.type === 'finance' ? nextItems : structured.financeItems,
+                };
+
+                const updatedNote = {
+                  ...currentNote,
+                  structuredContentJson: StructuredNoteService.toJson(nextStructured),
+                  markdownContent: StructuredNoteService.toMarkdown(nextStructured),
+                };
+
+                if (Platform.OS === 'ios' || Platform.OS === 'android') {
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                }
+
+                setNote(updatedNote);
+                await NoteRepository.save({
+                  id: currentNote.id,
+                  structuredContentJson: updatedNote.structuredContentJson,
+                  markdownContent: updatedNote.markdownContent,
+                  isLocked: currentNote.isLocked,
+                  isPinned: currentNote.isPinned,
+                });
+                await loadNotes();
+              }
+            }
+          }
+
+          activeDragItemIdRef.current = null;
+          setActiveDragItemId(null);
+          dragPanY.setValue(0);
+          triggerHaptic('selection');
+        },
+        onPanResponderTerminate: () => {
+          activeDragItemIdRef.current = null;
+          setActiveDragItemId(null);
+          dragPanY.setValue(0);
+        }
+      });
+    }
+    return panRespondersRef.current[id];
+  };
 
   // Keep noteRef in sync without causing re-renders
   useEffect(() => {
@@ -773,24 +912,35 @@ export const NoteDetailScreen: React.FC = () => {
     return (
       <View style={{ flex: 1 }}>
         {/* Active Checklist Items */}
-        {activeItems.map((item) => (
-          <ChecklistItemRow
-            key={item.id}
-            item={item}
-            colors={colors}
-            onToggle={handleToggleCheckItem}
-            onDelete={handleDeleteChecklistItem}
-            onUpdate={handleUpdateChecklistItem}
-            isFinance={note.type === 'finance'}
-            onAddNext={() => addItemInputRef.current?.focus()}
-            onFocus={() => {
-              // KeyboardAvoidingView will resize, let's do a tiny delay scroll
-              setTimeout(() => {
-                // If it's near the bottom, scrollToEnd. Otherwise, the keyboard avoiding view will handle layout adjustment.
-              }, 100);
-            }}
-          />
-        ))}
+        {activeItems.map((item) => {
+          const responder = getPanResponder(item.id, false);
+          return (
+            <ChecklistItemRow
+              key={item.id}
+              item={item}
+              colors={colors}
+              onToggle={handleToggleCheckItem}
+              onDelete={handleDeleteChecklistItem}
+              onUpdate={handleUpdateChecklistItem}
+              isFinance={note.type === 'finance'}
+              onAddNext={() => addItemInputRef.current?.focus()}
+              onFocus={() => {
+                setTimeout(() => {
+                  // Focus handling
+                }, 100);
+              }}
+              panHandlers={responder.panHandlers}
+              isDragging={activeDragItemId === item.id}
+              dragPanY={dragPanY}
+              onLayout={(e: any) => {
+                itemLayouts.current[item.id] = {
+                  y: e.nativeEvent.layout.y,
+                  h: e.nativeEvent.layout.height,
+                };
+              }}
+            />
+          );
+        })}
 
         {/* Add item row */}
         <View style={[styles.keepAddRow, { borderColor: colors.border }]}>
@@ -878,22 +1028,34 @@ export const NoteDetailScreen: React.FC = () => {
 
             {!isCompletedCollapsed && (
               <View style={styles.completedList}>
-                {completedItems.map((item) => (
-                  <ChecklistItemRow
-                    key={item.id}
-                    item={item}
-                    colors={colors}
-                    onToggle={handleToggleCheckItem}
-                    onDelete={handleDeleteChecklistItem}
-                    onUpdate={handleUpdateChecklistItem}
-                    isFinance={note.type === 'finance'}
-                    onFocus={() => {
-                      setTimeout(() => {
-                        // KeyboardAvoidingView will resize
-                      }, 100);
-                    }}
-                  />
-                ))}
+                {completedItems.map((item) => {
+                  const responder = getPanResponder(item.id, true);
+                  return (
+                    <ChecklistItemRow
+                      key={item.id}
+                      item={item}
+                      colors={colors}
+                      onToggle={handleToggleCheckItem}
+                      onDelete={handleDeleteChecklistItem}
+                      onUpdate={handleUpdateChecklistItem}
+                      isFinance={note.type === 'finance'}
+                      onFocus={() => {
+                        setTimeout(() => {
+                          // KeyboardAvoidingView will resize
+                        }, 100);
+                      }}
+                      panHandlers={responder.panHandlers}
+                      isDragging={activeDragItemId === item.id}
+                      dragPanY={dragPanY}
+                      onLayout={(e: any) => {
+                        itemLayouts.current[item.id] = {
+                          y: e.nativeEvent.layout.y,
+                          h: e.nativeEvent.layout.height,
+                        };
+                      }}
+                    />
+                  );
+                })}
               </View>
             )}
           </View>
@@ -1248,8 +1410,8 @@ export const NoteDetailScreen: React.FC = () => {
       {isEditing ? (
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
           <ScrollView
             keyboardShouldPersistTaps="handled"
@@ -1280,8 +1442,8 @@ export const NoteDetailScreen: React.FC = () => {
       ) : (
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
           {/* Segment Selector Tabs */}
           <View style={styles.tabsContainer}>
@@ -1324,6 +1486,7 @@ export const NoteDetailScreen: React.FC = () => {
             style={styles.scrollView}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            scrollEnabled={activeDragItemId === null}
           >
             <TextInput
               style={[
@@ -2068,6 +2231,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingVertical: SPACING.xs,
     gap: SPACING.sm,
+  },
+  dragHandle: {
+    padding: 4,
+    marginTop: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   keepCheck: {
     padding: 4,
