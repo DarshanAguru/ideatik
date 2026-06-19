@@ -12,7 +12,7 @@ import { Heading, Body, Caption, Label } from '../components/Typography';
 import { SPACING, COLORS, TYPOGRAPHY, RADIUS, SHADOWS } from '../theme/theme';
 import { useSettingsStore } from '../features/settings/settingsStore';
 import { useNotesStore, NoteTab } from '../features/notes/notesStore';
-import { FileText, CheckSquare, Trash2, DollarSign, Mic, Share2, Lock } from 'lucide-react-native';
+import { FileText, CheckSquare, Trash2, IndianRupee, Mic, Share2, Lock } from 'lucide-react-native';
 import { triggerHaptic } from '../utils/haptics';
 import { StructuredNoteService } from '../services/notes/StructuredNoteService';
 import { ShareOptionsModal } from '../components/ShareOptionsModal';
@@ -23,7 +23,7 @@ import { TagBadge } from '../components/TagBadge';
 const TYPE_ICONS = {
   note: FileText,
   list: CheckSquare,
-  finance: DollarSign,
+  finance: IndianRupee,
 } as const;
 
 const TABS: { id: NoteTab; label: string }[] = [

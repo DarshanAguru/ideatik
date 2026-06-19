@@ -15,7 +15,7 @@ import { ScreenWrapper, PressableScale } from '../components/ScreenWrapper';
 import { Heading, Body, Caption, Label } from '../components/Typography';
 import { SPACING, COLORS, TYPOGRAPHY, RADIUS, SHADOWS, ANIMATION } from '../theme/theme';
 import { useSettingsStore } from '../features/settings/settingsStore';
-import { Mic, RotateCcw, Save, Trash2, FileText, CheckSquare, Lock, DollarSign, Pin, ChevronUp, ChevronDown } from 'lucide-react-native';
+import { Mic, RotateCcw, Save, Trash2, FileText, CheckSquare, Lock, IndianRupee, Pin, ChevronUp, ChevronDown } from 'lucide-react-native';
 import { NoteRepository } from '../services/database/NoteRepository';
 import { StructuredNoteService } from '../services/notes/StructuredNoteService';
 
@@ -381,7 +381,7 @@ export const HomeScreen: React.FC = () => {
     // Select correct icon based on note type
     let TypeIcon = FileText;
     if (item.type === 'list') TypeIcon = CheckSquare;
-    if (item.type === 'finance') TypeIcon = DollarSign;
+    if (item.type === 'finance') TypeIcon = IndianRupee;
 
     const listForIndex = isPinned ? pinnedNotes : recentNotes;
     const idx = listForIndex.findIndex((n) => n.id === item.id);
@@ -774,7 +774,7 @@ export const HomeScreen: React.FC = () => {
               style={[styles.quickActionCard, { borderColor: colors.border }]}
               activeOpacity={0.7}
             >
-              <DollarSign size={14} color={colors.foreground} />
+              <IndianRupee size={14} color={colors.foreground} />
               <Caption size="sm" style={[styles.quickActionText, { color: colors.foreground }]}>
                 Finance
               </Caption>
