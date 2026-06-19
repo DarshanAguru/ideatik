@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { StyleSheet, View, TextInput, ScrollView, TouchableOpacity, Alert, Dimensions, ActivityIndicator, Modal, Text, KeyboardAvoidingView, Platform, PanResponder, Animated, LayoutAnimation, UIManager } from 'react-native';
+import { StyleSheet, View, TextInput, ScrollView, TouchableOpacity, Alert, Dimensions, ActivityIndicator, Modal, Text, KeyboardAvoidingView, Platform, PanResponder, Animated, LayoutAnimation, UIManager, Keyboard } from 'react-native';
 import Tts from 'react-native-tts';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { ScreenWrapper } from '../components/ScreenWrapper';
@@ -39,9 +39,11 @@ const ChecklistItemRow = ({
   isDragging,
   dragPanY,
   onLayout,
+  autoFocus,
 }: any) => {
   const [localText, setLocalText] = useState(item.text);
   const [localAmount, setLocalAmount] = useState(item.amount !== undefined ? String(item.amount) : '');
+  const inputRef = useRef<any>(null);
 
   useEffect(() => {
     setLocalText(item.text);
@@ -50,6 +52,12 @@ const ChecklistItemRow = ({
   useEffect(() => {
     setLocalAmount(item.amount !== undefined ? String(item.amount) : '');
   }, [item.amount]);
+
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [autoFocus]);
 
   const handleBlur = () => {
     const nextAmount = isFinance ? parseFloat(localAmount) || 0 : undefined;
@@ -68,6 +76,12 @@ const ChecklistItemRow = ({
       onAddNext?.();
     } else {
       setLocalText(text);
+    }
+  };
+
+  const handleKeyPress = ({ nativeEvent }: any) => {
+    if (nativeEvent.key === 'Backspace' && localText === '') {
+      onDelete(item.id);
     }
   };
 
@@ -100,6 +114,7 @@ const ChecklistItemRow = ({
       </TouchableOpacity>
 
       <TextInput
+        ref={inputRef}
         style={[
           styles.keepInput,
           { color: item.checked ? colors.muted : colors.foreground },
@@ -109,6 +124,7 @@ const ChecklistItemRow = ({
         onChangeText={handleChangeText}
         onBlur={handleBlur}
         onFocus={onFocus}
+        onKeyPress={handleKeyPress}
         placeholder="List item"
         placeholderTextColor={colors.placeholder}
         multiline={true}
@@ -220,6 +236,29 @@ export const NoteDetailScreen: React.FC = () => {
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  // Keyboard height state to manually layout viewports and avoid obstruction
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [newlyCreatedItemId, setNewlyCreatedItemId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const hideSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const progressInterval = useRef<any>(null);
 
@@ -779,10 +818,59 @@ export const NoteDetailScreen: React.FC = () => {
     await loadNotes();
   };
 
+  const handleInsertChecklistItemAfter = async (itemId: string, text: string = '', amount?: number) => {
+    if (!note) return;
+    const structured = StructuredNoteService.fromNote(note);
+    const items = StructuredNoteService.items(structured);
+    const index = items.findIndex((it) => it.id === itemId);
+    if (index === -1) return;
+
+    const newId = Math.random().toString(36).substr(2, 9);
+    const newItem = {
+      id: newId,
+      text: text,
+      checked: false,
+      amount: amount,
+      isChecklist: true,
+    };
+
+    const newItems = [...items];
+    newItems.splice(index + 1, 0, newItem);
+
+    const nextStructured = StructuredNoteService.normalize({
+      ...structured,
+      listItems: structured.type === 'finance' ? structured.listItems : newItems,
+      financeItems: structured.type === 'finance' ? newItems : structured.financeItems,
+    });
+
+    setNewlyCreatedItemId(newId);
+
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
+
+    await NoteRepository.save({
+      ...note,
+      structuredContentJson: StructuredNoteService.toJson(nextStructured),
+      markdownContent: StructuredNoteService.toMarkdown(nextStructured),
+      transcript: StructuredNoteService.bodyText(nextStructured),
+    });
+    await fetchNoteDetails();
+    await loadNotes();
+  };
+
   const handleDeleteChecklistItem = async (itemId: string) => {
     if (!note) return;
     const structured = StructuredNoteService.fromNote(note);
-    const newItems = StructuredNoteService.items(structured).filter((item) => item.id !== itemId);
+    const items = StructuredNoteService.items(structured);
+    const index = items.findIndex((it) => it.id === itemId);
+    
+    let prevItemId: string | null = null;
+    if (index > 0) {
+      prevItemId = items[index - 1].id;
+    }
+
+    const newItems = items.filter((item) => item.id !== itemId);
 
     const title = note.title ? note.title.trim() : '';
     const isDefault = title === '' ||
@@ -798,12 +886,20 @@ export const NoteDetailScreen: React.FC = () => {
       return;
     }
 
+    if (prevItemId) {
+      setNewlyCreatedItemId(prevItemId);
+    }
+
     const nextStructured = StructuredNoteService.normalize({
       ...structured,
-      // Route to the correct list — finance type uses financeItems, list type uses listItems
       listItems: structured.type === 'finance' ? structured.listItems : newItems,
       financeItems: structured.type === 'finance' ? newItems : structured.financeItems,
     });
+
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
+
     await NoteRepository.save({
       ...note,
       structuredContentJson: StructuredNoteService.toJson(nextStructured),
@@ -923,7 +1019,7 @@ export const NoteDetailScreen: React.FC = () => {
               onDelete={handleDeleteChecklistItem}
               onUpdate={handleUpdateChecklistItem}
               isFinance={note.type === 'finance'}
-              onAddNext={() => addItemInputRef.current?.focus()}
+              onAddNext={() => handleInsertChecklistItemAfter(item.id)}
               onFocus={() => {
                 setTimeout(() => {
                   const layout = itemLayouts.current[item.id];
@@ -944,6 +1040,7 @@ export const NoteDetailScreen: React.FC = () => {
                   h: e.nativeEvent.layout.height,
                 };
               }}
+              autoFocus={item.id === newlyCreatedItemId}
             />
           );
         })}
@@ -1045,6 +1142,7 @@ export const NoteDetailScreen: React.FC = () => {
                       onDelete={handleDeleteChecklistItem}
                       onUpdate={handleUpdateChecklistItem}
                       isFinance={note.type === 'finance'}
+                      onAddNext={() => handleInsertChecklistItemAfter(item.id)}
                       onFocus={() => {
                         setTimeout(() => {
                           scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -1059,6 +1157,7 @@ export const NoteDetailScreen: React.FC = () => {
                           h: e.nativeEvent.layout.height,
                         };
                       }}
+                      autoFocus={item.id === newlyCreatedItemId}
                     />
                   );
                 })}
@@ -1414,11 +1513,7 @@ export const NoteDetailScreen: React.FC = () => {
 
       {/* Main content viewport — wrapped in KeyboardAvoidingView so input stays visible */}
       {isEditing ? (
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        >
+        <View style={{ flex: 1, paddingBottom: keyboardHeight }}>
           <TextInput
             style={[
               styles.contentEditor,
@@ -1435,13 +1530,9 @@ export const NoteDetailScreen: React.FC = () => {
             placeholder="Start typing..."
             placeholderTextColor={colors.placeholder}
           />
-        </KeyboardAvoidingView>
+        </View>
       ) : (
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        >
+        <View style={{ flex: 1, paddingBottom: keyboardHeight }}>
           {/* Segment Selector Tabs */}
           <View style={styles.tabsContainer}>
             <TouchableOpacity
@@ -1481,6 +1572,7 @@ export const NoteDetailScreen: React.FC = () => {
           <ScrollView
             ref={scrollViewRef}
             style={styles.scrollView}
+            contentContainerStyle={{ paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 120 }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             scrollEnabled={activeDragItemId === null}
@@ -1671,7 +1763,7 @@ export const NoteDetailScreen: React.FC = () => {
             )}
             <View style={{ height: SPACING.huge }} />
           </ScrollView>
-        </KeyboardAvoidingView>
+        </View>
       )}
       <ShareOptionsModal
         visible={showShareModal}
