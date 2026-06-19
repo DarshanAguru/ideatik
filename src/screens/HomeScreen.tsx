@@ -152,7 +152,9 @@ export const HomeScreen: React.FC = () => {
     if (!panRespondersRef.current[id]) {
       panRespondersRef.current[id] = PanResponder.create({
         onStartShouldSetPanResponder: () => activeDragIdRef.current === id,
+        onStartShouldSetPanResponderCapture: () => activeDragIdRef.current === id,
         onMoveShouldSetPanResponder: () => activeDragIdRef.current === id,
+        onMoveShouldSetPanResponderCapture: () => activeDragIdRef.current === id,
         onPanResponderGrant: () => {
           triggerHaptic('impact');
         },

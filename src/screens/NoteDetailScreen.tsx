@@ -237,8 +237,8 @@ export const NoteDetailScreen: React.FC = () => {
   const getPanResponder = (id: string, isChecked: boolean) => {
     if (!panRespondersRef.current[id]) {
       panRespondersRef.current[id] = PanResponder.create({
-        onStartShouldSetPanResponder: () => activeDragItemIdRef.current === id,
-        onMoveShouldSetPanResponder: () => activeDragItemIdRef.current === id,
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
         onPanResponderGrant: () => {
           triggerHaptic('impact');
           activeDragItemIdRef.current = id;
@@ -926,8 +926,14 @@ export const NoteDetailScreen: React.FC = () => {
               onAddNext={() => addItemInputRef.current?.focus()}
               onFocus={() => {
                 setTimeout(() => {
-                  // Focus handling
-                }, 100);
+                  const layout = itemLayouts.current[item.id];
+                  if (layout) {
+                    scrollViewRef.current?.scrollTo({
+                      y: Math.max(0, layout.y - 80),
+                      animated: true,
+                    });
+                  }
+                }, 150);
               }}
               panHandlers={responder.panHandlers}
               isDragging={activeDragItemId === item.id}
@@ -1041,8 +1047,8 @@ export const NoteDetailScreen: React.FC = () => {
                       isFinance={note.type === 'finance'}
                       onFocus={() => {
                         setTimeout(() => {
-                          // KeyboardAvoidingView will resize
-                        }, 100);
+                          scrollViewRef.current?.scrollToEnd({ animated: true });
+                        }, 150);
                       }}
                       panHandlers={responder.panHandlers}
                       isDragging={activeDragItemId === item.id}
@@ -1413,31 +1419,22 @@ export const NoteDetailScreen: React.FC = () => {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{
-              flexGrow: 1,
-              paddingBottom: 200,
-            }}
-          >
-            <TextInput
-              style={[
-                styles.contentEditor,
-                {
-                  color: colors.foreground,
-                  borderColor: colors.border,
-                  backgroundColor: colors.surface,
-                },
-              ]}
-              multiline
-              autoFocus
-              value={bodyText}
-              onChangeText={setBodyText}
-              textAlignVertical="top"
-              placeholder="Start typing..."
-              placeholderTextColor={colors.placeholder}
-            />
-          </ScrollView>
+          <TextInput
+            style={[
+              styles.contentEditor,
+              {
+                color: colors.foreground,
+                borderColor: colors.border,
+                backgroundColor: colors.surface,
+              },
+            ]}
+            multiline
+            autoFocus
+            value={bodyText}
+            onChangeText={setBodyText}
+            placeholder="Start typing..."
+            placeholderTextColor={colors.placeholder}
+          />
         </KeyboardAvoidingView>
       ) : (
         <KeyboardAvoidingView
@@ -2053,12 +2050,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentEditor: {
-    minHeight: 700,
+    flex: 1,
     borderWidth: 1,
     borderRadius: 20,
     padding: 20,
     fontSize: 18,
     lineHeight: 30,
+    textAlignVertical: 'top',
   },
   tabsContainer: {
     flexDirection: 'row',
