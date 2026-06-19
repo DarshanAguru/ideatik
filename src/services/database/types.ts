@@ -16,6 +16,7 @@ export interface NoteMetadata {
   aiSummary?: string;
   isDeleted: boolean;
   isLocked: boolean;
+  isPinned?: boolean;
   transcriptionStatus: 'idle' | 'queued' | 'processing' | 'processing_offline' | 'completed' | 'completed_offline' | 'failed';
   transcriptionError?: string;
 }

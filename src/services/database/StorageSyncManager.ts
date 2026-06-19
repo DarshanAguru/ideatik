@@ -51,6 +51,8 @@ class StorageSyncManagerClass {
             updatedAt: fileModifiedTime,
             duration: dbNote ? dbNote.duration : 0,
             isDeleted: false,
+            isLocked: dbNote ? dbNote.isLocked : false,
+            isPinned: dbNote ? dbNote.isPinned : false,
           });
         }
       }

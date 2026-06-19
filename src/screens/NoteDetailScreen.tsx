@@ -12,7 +12,7 @@ import { AudioPlayerService } from '../services/audio/AudioPlayerService';
 import { WhisperService } from '../services/whisper/WhisperService';
 import { BackgroundTaskManager } from '../services/background/BackgroundTaskManager';
 // Deleted unused types import
-import { Play, Pause, ChevronLeft, Edit3, Check, CheckSquare, Square, ExternalLink, Share2, Trash2, Plus, ChevronDown, ChevronUp, Lock, Unlock, Settings, X } from 'lucide-react-native';
+import { Play, Pause, ChevronLeft, Edit3, Check, CheckSquare, Square, ExternalLink, Share2, Trash2, Plus, ChevronDown, ChevronUp, Lock, Unlock, Settings, X, Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Code, Pin } from 'lucide-react-native';
 import { triggerHaptic } from '../utils/haptics';
 import { authenticate } from '../utils/localAuth';
 import { StructuredNoteService } from '../services/notes/StructuredNoteService';
@@ -41,6 +41,18 @@ const ChecklistItemRow = ({ item, colors, onToggle, onDelete, onUpdate, isFinanc
     }
   };
 
+  const handleChangeText = (text: string) => {
+    if (text.endsWith('\n')) {
+      const cleanText = text.slice(0, -1);
+      setLocalText(cleanText);
+      const nextAmount = isFinance ? parseFloat(localAmount) || 0 : undefined;
+      onUpdate(item.id, cleanText.trim(), nextAmount);
+      onAddNext?.();
+    } else {
+      setLocalText(text);
+    }
+  };
+
   return (
     <View style={styles.keepRow}>
       <TouchableOpacity onPress={() => onToggle(item.id, item.checked)} style={styles.keepCheck}>
@@ -58,17 +70,13 @@ const ChecklistItemRow = ({ item, colors, onToggle, onDelete, onUpdate, isFinanc
           item.checked ? { textDecorationLine: 'line-through' } : undefined,
         ]}
         value={localText}
-        onChangeText={setLocalText}
+        onChangeText={handleChangeText}
         onBlur={handleBlur}
         onFocus={onFocus}
         placeholder="List item"
         placeholderTextColor={colors.placeholder}
-        returnKeyType="next"
+        multiline={true}
         blurOnSubmit={false}
-        onSubmitEditing={() => {
-          handleBlur();
-          onAddNext?.();
-        }}
       />
 
       {isFinance && (
@@ -119,6 +127,53 @@ export const NoteDetailScreen: React.FC = () => {
   const [pendingRefSearch, setPendingRefSearch] = useState('');
   const [ignoredPendingRefs, setIgnoredPendingRefs] = useState<string[]>([]);
   const [processedPendingRefs, setProcessedPendingRefs] = useState<string[]>([]);
+
+  // Markdown editor helpers
+  const editorInputRef = useRef<TextInput>(null);
+  const [selection, setSelection] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
+
+  const handleInsertMarkdown = (prefix: string, suffix: string = '') => {
+    triggerHaptic('selection');
+    const start = selection.start;
+    const end = selection.end;
+    const selectedText = bodyText.substring(start, end);
+    const newText =
+      bodyText.substring(0, start) +
+      prefix +
+      selectedText +
+      suffix +
+      bodyText.substring(end);
+
+    setBodyText(newText);
+
+    // Calculate new cursor position
+    const newIndex = start + prefix.length + selectedText.length + suffix.length;
+
+    setTimeout(() => {
+      editorInputRef.current?.focus();
+      setSelection({ start: newIndex, end: newIndex });
+    }, 50);
+  };
+
+  const handleTogglePin = async () => {
+    if (!note) return;
+    triggerHaptic('selection');
+
+    if (!note.isPinned) {
+      // Check if we already have 5 pinned notes
+      const allNotes = await NoteRepository.findAll();
+      const pinnedNotesCount = allNotes.filter(n => n.isPinned).length;
+      if (pinnedNotesCount >= 5) {
+        Alert.alert('Limit Reached', 'You can pin at most 5 items on the Home screen.');
+        return;
+      }
+    }
+
+    const updatedNote = { ...note, isPinned: !note.isPinned };
+    await NoteRepository.save(updatedNote);
+    setNote(updatedNote);
+    await loadNotes();
+  };
 
   // Audio player state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -433,6 +488,8 @@ export const NoteDetailScreen: React.FC = () => {
       referenceLinks: nextStructured.referenceIds,
       references: nextStructured.referenceIds.map((ref) => ref.title),
       pendingReferenceCommands: nextStructured.pendingReferenceCommands,
+      isLocked: note.isLocked,
+      isPinned: note.isPinned,
     });
 
     setIsEditing(false);
@@ -772,22 +829,25 @@ export const NoteDetailScreen: React.FC = () => {
             placeholder={note.type === 'finance' ? "Add expense..." : "Add item..."}
             placeholderTextColor={colors.placeholder}
             value={newItemText}
-            onChangeText={setNewItemText}
-            returnKeyType="done"
+            onChangeText={(text) => {
+              if (text.endsWith('\n')) {
+                const cleanText = text.slice(0, -1);
+                if (cleanText.trim()) {
+                  handleAddChecklistItem(cleanText, note.type === 'finance' ? parseFloat(newItemAmount) || 0 : undefined);
+                  setNewItemText('');
+                  setNewItemAmount('');
+                  setTimeout(() => addItemInputRef.current?.focus(), 50);
+                }
+              } else {
+                setNewItemText(text);
+              }
+            }}
+            multiline={true}
             blurOnSubmit={false}
             onFocus={() => {
               setTimeout(() => {
                 scrollViewRef.current?.scrollToEnd({ animated: true });
               }, 100);
-            }}
-            onSubmitEditing={() => {
-              if (newItemText.trim()) {
-                handleAddChecklistItem(newItemText, note.type === 'finance' ? parseFloat(newItemAmount) || 0 : undefined);
-                setNewItemText('');
-                setNewItemAmount('');
-                // Keep focus so user can add another item
-                setTimeout(() => addItemInputRef.current?.focus(), 50);
-              }
             }}
           />
           {note.type === 'finance' && (
@@ -1027,6 +1087,8 @@ export const NoteDetailScreen: React.FC = () => {
       referenceLinks: nextStructured.referenceIds,
       references: nextStructured.referenceIds.map((ref) => ref.title),
       pendingReferenceCommands: nextStructured.pendingReferenceCommands,
+      isLocked: note.isLocked,
+      isPinned: note.isPinned,
     });
     
     setCurrentPendingRef(null);
@@ -1054,6 +1116,8 @@ export const NoteDetailScreen: React.FC = () => {
       id: note.id,
       structuredContentJson: StructuredNoteService.toJson(nextStructured),
       pendingReferenceCommands: nextStructured.pendingReferenceCommands,
+      isLocked: note.isLocked,
+      isPinned: note.isPinned,
     });
     
     setCurrentPendingRef(null);
@@ -1074,6 +1138,8 @@ export const NoteDetailScreen: React.FC = () => {
       id: note.id,
       structuredContentJson: StructuredNoteService.toJson(nextStructured),
       pendingReferenceCommands: [],
+      isLocked: note.isLocked,
+      isPinned: note.isPinned,
     });
     
     setCurrentPendingRef(null);
@@ -1125,7 +1191,10 @@ export const NoteDetailScreen: React.FC = () => {
             <Check size={20} color={colors.foreground} />
           </TouchableOpacity>
         ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity onPress={handleTogglePin} style={styles.actionButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Pin size={18} color={colors.foreground} fill={note?.isPinned ? colors.foreground : 'none'} style={note?.isPinned ? { transform: [{ rotate: '45deg' }] } : undefined} />
+            </TouchableOpacity>
             <TouchableOpacity onPress={handleToggleLock} style={styles.actionButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               {note?.isLocked ? (
                 <Lock size={18} color={colors.foreground} />
@@ -1211,15 +1280,52 @@ export const NoteDetailScreen: React.FC = () => {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
           <TextInput
+            ref={editorInputRef}
             style={[styles.contentEditor, { color: colors.foreground, borderColor: colors.border }]}
             multiline
             autoFocus
             value={bodyText}
             onChangeText={setBodyText}
+            onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
+            selection={selection}
             textAlignVertical="top"
             placeholder="Write your note..."
             placeholderTextColor={colors.placeholder}
           />
+          <View style={[styles.toolbar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" contentContainerStyle={styles.toolbarScroll}>
+              <TouchableOpacity onPress={() => handleInsertMarkdown('\n# ')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Heading1 size={16} color={colors.foreground} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleInsertMarkdown('\n## ')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Heading2 size={16} color={colors.foreground} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleInsertMarkdown('\n### ')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Heading3 size={16} color={colors.foreground} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleInsertMarkdown('**', '**')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Bold size={16} color={colors.foreground} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleInsertMarkdown('*', '*')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Italic size={16} color={colors.foreground} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleInsertMarkdown('\n- ')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <List size={16} color={colors.foreground} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleInsertMarkdown('\n1. ')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <ListOrdered size={16} color={colors.foreground} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleInsertMarkdown('\n- [ ] ')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <CheckSquare size={16} color={colors.foreground} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleInsertMarkdown('\n```\n', '\n```')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Code size={16} color={colors.foreground} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleInsertMarkdown('\n> ')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Quote size={16} color={colors.foreground} />
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
         </KeyboardAvoidingView>
       ) : (
         <KeyboardAvoidingView
@@ -2011,12 +2117,13 @@ const styles = StyleSheet.create({
   },
   keepRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: SPACING.xs,
     gap: SPACING.sm,
   },
   keepCheck: {
     padding: 4,
+    marginTop: 2,
   },
   keepInput: {
     flex: 1,
@@ -2032,28 +2139,29 @@ const styles = StyleSheet.create({
   },
   keepDelete: {
     padding: 6,
+    marginTop: 0,
   },
   keepAddRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginTop: SPACING.md,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: SPACING.md,
-    height: 48,
+    minHeight: 48,
+    paddingVertical: 8,
   },
   keepAddInput: {
     flex: 1,
     fontSize: 15,
-    height: '100%',
-    padding: 0,
+    paddingVertical: 4,
+    paddingHorizontal: 0,
   },
   keepAddAmountInput: {
     width: 65,
     fontSize: 15,
     textAlign: 'right',
-    height: '100%',
-    padding: 0,
+    paddingVertical: 4,
     marginRight: SPACING.sm,
   },
   keepAddBtn: {
@@ -2127,5 +2235,30 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginTop: SPACING.sm,
+  },
+  toolbar: {
+    height: 48,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  toolbarScroll: {
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingRight: SPACING.md,
+  },
+  toolbarButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toolbarButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

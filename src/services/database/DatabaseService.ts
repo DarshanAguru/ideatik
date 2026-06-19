@@ -47,6 +47,7 @@ class DatabaseServiceClass {
           aiSummary TEXT,
           isDeleted INTEGER DEFAULT 0,
           isLocked INTEGER DEFAULT 0,
+          isPinned INTEGER DEFAULT 0,
           transcriptionStatus TEXT DEFAULT 'idle',
           transcriptionError TEXT
         );
@@ -54,6 +55,7 @@ class DatabaseServiceClass {
 
       await this.addColumnIfMissing('notes', 'structuredContentJson', "TEXT DEFAULT ''");
       await this.addColumnIfMissing('notes', 'isLocked', 'INTEGER DEFAULT 0');
+      await this.addColumnIfMissing('notes', 'isPinned', 'INTEGER DEFAULT 0');
       await this.addColumnIfMissing('notes', 'tagsJson', "TEXT DEFAULT '[]'");
       await this.addColumnIfMissing('notes', 'referenceLinksJson', "TEXT DEFAULT '[]'");
       await this.addColumnIfMissing('notes', 'pendingReferenceCommandsJson', "TEXT DEFAULT '[]'");
@@ -182,10 +184,11 @@ class DatabaseServiceClass {
         updatedAt: params[12],
         duration: params[13],
         aiSummary: params[14],
-        isDeleted: params[15] === 1,
-        isLocked: params[16] === 1,
-        transcriptionStatus: params[17] || 'idle',
-        transcriptionError: params[18],
+        isDeleted: params[15] === 1 || params[15] === true,
+        isLocked: params[16] === 1 || params[16] === true,
+        isPinned: params[17] === 1 || params[17] === true,
+        transcriptionStatus: params[18] || 'idle',
+        transcriptionError: params[19],
       };
       
       const index = notes.findIndex((n) => n.id === note.id);

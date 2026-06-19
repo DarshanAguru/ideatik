@@ -14,6 +14,8 @@ interface NotesState {
   selectedTab: NoteTab;
   filters: SearchFilters;
   isLoading: boolean;
+  pinnedOrder: string[];
+  recentOrder: string[];
 
   setSearchQuery: (query: string) => void;
   setSelectedTab: (tab: NoteTab) => void;
@@ -26,6 +28,8 @@ interface NotesState {
   saveStructuredNote: (noteId: string, updates: { title?: string; bodyText?: string; tags?: string[] }) => Promise<void>;
   updateChecklistItems: (noteId: string, items: any[]) => Promise<void>;
   getFilteredNotes: () => NoteMetadata[];
+  setPinnedOrder: (order: string[]) => Promise<void>;
+  setRecentOrder: (order: string[]) => Promise<void>;
 }
 
 export const useNotesStore = create<NotesState>((set, get) => ({
@@ -34,6 +38,8 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   selectedTab: 'all',
   filters: {},
   isLoading: false,
+  pinnedOrder: [],
+  recentOrder: [],
 
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   setSelectedTab: (selectedTab) => set({ selectedTab }),
@@ -61,8 +67,19 @@ export const useNotesStore = create<NotesState>((set, get) => ({
         await DatabaseService.deleteMetadata('active_draft_note_id');
       }
 
+      // Fetch stored custom sort order
+      const pinnedOrderStr = await DatabaseService.getMetadata('pinned_notes_order');
+      const recentOrderStr = await DatabaseService.getMetadata('recent_notes_order');
+      const pinnedOrder = pinnedOrderStr ? JSON.parse(pinnedOrderStr) : [];
+      const recentOrder = recentOrderStr ? JSON.parse(recentOrderStr) : [];
+
       const list = await NoteRepository.findAll();
-      set({ notesList: list, isLoading: false });
+      set({ 
+        notesList: list, 
+        pinnedOrder, 
+        recentOrder, 
+        isLoading: false 
+      });
     } catch (e) {
       console.error('notesStore: Error loading notes:', e);
       set({ isLoading: false });
@@ -121,6 +138,8 @@ export const useNotesStore = create<NotesState>((set, get) => ({
         id: noteId,
         structuredContentJson: StructuredNoteService.toJson(nextStructured),
         transcript: StructuredNoteService.bodyText(nextStructured),
+        isLocked: note.isLocked,
+        isPinned: note.isPinned,
       });
 
       // Reload lists
@@ -150,6 +169,8 @@ export const useNotesStore = create<NotesState>((set, get) => ({
       references: nextStructured.referenceIds.map((ref) => ref.title),
       pendingReferenceCommands: nextStructured.pendingReferenceCommands,
       tags: updates.tags !== undefined ? updates.tags : note.tags,
+      isLocked: note.isLocked,
+      isPinned: note.isPinned,
     });
     await get().loadNotes();
   },
@@ -168,8 +189,20 @@ export const useNotesStore = create<NotesState>((set, get) => ({
       id: noteId,
       structuredContentJson: StructuredNoteService.toJson(nextStructured),
       transcript: StructuredNoteService.bodyText(nextStructured),
+      isLocked: note.isLocked,
+      isPinned: note.isPinned,
     });
     await get().loadNotes();
+  },
+
+  setPinnedOrder: async (order) => {
+    set({ pinnedOrder: order });
+    await DatabaseService.setMetadata('pinned_notes_order', JSON.stringify(order));
+  },
+
+  setRecentOrder: async (order) => {
+    set({ recentOrder: order });
+    await DatabaseService.setMetadata('recent_notes_order', JSON.stringify(order));
   },
 
   getFilteredNotes: () => {

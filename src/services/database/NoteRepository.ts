@@ -3,25 +3,7 @@ import { FilesystemService } from './FilesystemService';
 import { NoteMetadata, NoteReference } from './types';
 import { StructuredNoteService } from '../notes/StructuredNoteService';
 
-function isDefaultTitle(title: string | undefined): boolean {
-  if (!title) return true;
-  const t = title.trim().toLowerCase();
-  if (
-    t === 'untitled capture' ||
-    t === 'untitled list' ||
-    t === 'untitled finance' ||
-    t === 'untitled note' ||
-    t === 'untitled' ||
-    t === 'untitled sync'
-  ) {
-    return true;
-  }
-  // Matches sequential defaults, e.g. note-1, list-5, finance-list-12, etc.
-  if (/^(note|list|finance-list)-\d+$/.test(t)) {
-    return true;
-  }
-  return false;
-}
+
 
 class NoteRepositoryClass {
   // In-memory cache of note metadata (createdAt and audioUri) to optimize high-frequency saves
@@ -69,7 +51,6 @@ class NoteRepositoryClass {
         ...(existingNote || {}),
         ...note,
       });
-      const structuredNote = StructuredNoteService.toStructuredNote(structured);
 
       const type = note.type || (existingNote ? existingNote.type : (structured.type || 'note'));
 
@@ -91,12 +72,13 @@ class NoteRepositoryClass {
       const pendingReferenceCommands = note.pendingReferenceCommands || structured.pendingReferenceCommands || [];
       const tags = note.tags || (existingNote ? existingNote.tags : []);
       const createdAt = note.createdAt || (cached ? cached.createdAt : now);
-      const duration = note.duration !== undefined ? note.duration : 0;
-      const aiSummary = note.aiSummary || undefined;
-      const isDeleted = note.isDeleted !== undefined ? note.isDeleted : false;
-      const isLocked = note.isLocked !== undefined ? note.isLocked : false;
+      const duration = note.duration !== undefined ? note.duration : (existingNote ? existingNote.duration : 0);
+      const aiSummary = note.aiSummary !== undefined ? note.aiSummary : (existingNote ? existingNote.aiSummary : undefined);
+      const isDeleted = note.isDeleted !== undefined ? note.isDeleted : (existingNote ? existingNote.isDeleted : false);
+      const isLocked = note.isLocked !== undefined ? note.isLocked : (existingNote ? existingNote.isLocked : false);
+      const isPinned = note.isPinned !== undefined ? note.isPinned : (existingNote ? existingNote.isPinned : false);
       const transcriptionStatus = note.transcriptionStatus || (existingNote ? existingNote.transcriptionStatus : 'idle');
-      const transcriptionError = note.transcriptionError || undefined;
+      const transcriptionError = note.transcriptionError !== undefined ? note.transcriptionError : (existingNote ? existingNote.transcriptionError : undefined);
 
       // Update cache
       this.saveCache.set(note.id, {
@@ -109,8 +91,8 @@ class NoteRepositoryClass {
         `INSERT OR REPLACE INTO notes (
           id, title, type, markdownContent, structuredContentJson, transcript, audioUri, referencesJson,
           referenceLinksJson, pendingReferenceCommandsJson, tagsJson, createdAt, updatedAt, duration,
-          aiSummary, isDeleted, isLocked, transcriptionStatus, transcriptionError
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          aiSummary, isDeleted, isLocked, isPinned, transcriptionStatus, transcriptionError
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
         [
           note.id,
           title,
@@ -129,6 +111,7 @@ class NoteRepositoryClass {
           aiSummary || null,
           isDeleted ? 1 : 0,
           isLocked ? 1 : 0,
+          isPinned ? 1 : 0,
           transcriptionStatus,
           transcriptionError || null,
         ]
@@ -347,6 +330,7 @@ class NoteRepositoryClass {
       aiSummary: row.aiSummary || undefined,
       isDeleted: row.isDeleted === 1 || row.isDeleted === true,
       isLocked: row.isLocked === 1 || row.isLocked === true,
+      isPinned: row.isPinned === 1 || row.isPinned === true,
       transcriptionStatus: row.transcriptionStatus || 'idle',
       transcriptionError: row.transcriptionError || undefined,
     };

@@ -64,6 +64,7 @@ interface PressableScaleProps {
   children: React.ReactNode;
   onPress?: (e: GestureResponderEvent) => void;
   onLongPress?: (e: GestureResponderEvent) => void;
+  delayLongPress?: number;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   scaleValue?: number;
@@ -75,6 +76,7 @@ export const PressableScale: React.FC<PressableScaleProps> = ({
   children,
   onPress,
   onLongPress,
+  delayLongPress,
   disabled = false,
   style,
   scaleValue = 0.96,
@@ -101,6 +103,7 @@ export const PressableScale: React.FC<PressableScaleProps> = ({
     <TouchableOpacity
       onPress={onPress}
       onLongPress={onLongPress}
+      delayLongPress={delayLongPress}
       onPressIn={pressIn}
       onPressOut={pressOut}
       disabled={disabled}
