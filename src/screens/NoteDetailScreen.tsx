@@ -9,10 +9,9 @@ import { useSettingsStore } from '../features/settings/settingsStore';
 import { useNotesStore } from '../features/notes/notesStore';
 import { NoteRepository } from '../services/database/NoteRepository';
 import { AudioPlayerService } from '../services/audio/AudioPlayerService';
-import { WhisperService } from '../services/whisper/WhisperService';
 import { BackgroundTaskManager } from '../services/background/BackgroundTaskManager';
 // Deleted unused types import
-import { Play, Pause, ChevronLeft, Edit3, Check, CheckSquare, Square, ExternalLink, Share2, Trash2, Plus, ChevronDown, ChevronUp, Lock, Unlock, Settings, X, Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Code, Pin } from 'lucide-react-native';
+import { Play, Pause, ChevronLeft, Edit3, Check, CheckSquare, Square, ExternalLink, Share2, Trash2, Plus, ChevronDown, ChevronUp, Lock, Unlock, Settings, X, Pin } from 'lucide-react-native';
 import { triggerHaptic } from '../utils/haptics';
 import { authenticate } from '../utils/localAuth';
 import { StructuredNoteService } from '../services/notes/StructuredNoteService';
@@ -128,33 +127,6 @@ export const NoteDetailScreen: React.FC = () => {
   const [ignoredPendingRefs, setIgnoredPendingRefs] = useState<string[]>([]);
   const [processedPendingRefs, setProcessedPendingRefs] = useState<string[]>([]);
 
-  // Markdown editor helpers
-  const editorInputRef = useRef<TextInput>(null);
-  const [selection, setSelection] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
-
-  const handleInsertMarkdown = (prefix: string, suffix: string = '') => {
-    triggerHaptic('selection');
-    const start = selection.start;
-    const end = selection.end;
-    const selectedText = bodyText.substring(start, end);
-    const newText =
-      bodyText.substring(0, start) +
-      prefix +
-      selectedText +
-      suffix +
-      bodyText.substring(end);
-
-    setBodyText(newText);
-
-    // Calculate new cursor position
-    const newIndex = start + prefix.length + selectedText.length + suffix.length;
-
-    setTimeout(() => {
-      editorInputRef.current?.focus();
-      setSelection({ start: newIndex, end: newIndex });
-    }, 50);
-  };
-
   const handleTogglePin = async () => {
     if (!note) return;
     triggerHaptic('selection');
@@ -180,7 +152,7 @@ export const NoteDetailScreen: React.FC = () => {
   const [audioDuration, setAudioDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [audioLoaded, setAudioLoaded] = useState(false);
-  
+
   // TTS player state
   const [isTtsSpeaking, setIsTtsSpeaking] = useState(false);
 
@@ -208,10 +180,10 @@ export const NoteDetailScreen: React.FC = () => {
       }
     };
   }, []);
-  
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  
+
   const progressInterval = useRef<any>(null);
 
   const noteRef = useRef<any>(null);
@@ -311,7 +283,7 @@ export const NoteDetailScreen: React.FC = () => {
         });
         setBacklinks(links);
       });
-      
+
       // Load audio if it exists
       if (data.audioUri) {
         try {
@@ -442,11 +414,11 @@ export const NoteDetailScreen: React.FC = () => {
     if (!note) return;
 
     const title = noteTitle ? noteTitle.trim() : '';
-    const isDefault = title === '' || 
+    const isDefault = title === '' ||
       title.toLowerCase() === 'untitled' ||
-      title.toLowerCase() === 'untitled note' || 
-      title.toLowerCase() === 'untitled capture' || 
-      title.toLowerCase() === 'voice capture' || 
+      title.toLowerCase() === 'untitled note' ||
+      title.toLowerCase() === 'untitled capture' ||
+      title.toLowerCase() === 'voice capture' ||
       /^(note|list|finance-list)-\d+$/i.test(title);
 
     if (note.type === 'note' && bodyText.trim() === '' && isDefault) {
@@ -458,7 +430,7 @@ export const NoteDetailScreen: React.FC = () => {
     }
 
     const structured = StructuredNoteService.fromNote(note);
-    
+
     // Scan bodyText for [1], [2], etc.
     const bracketRegex = /\[\d+\]/g;
     const foundSlots = bodyText.match(bracketRegex) || [];
@@ -513,7 +485,7 @@ export const NoteDetailScreen: React.FC = () => {
       structuredContentJson: StructuredNoteService.toJson(nextStructured),
       markdownContent: StructuredNoteService.toMarkdown(nextStructured),
     };
-    
+
     setNote(updatedNote);
   };
 
@@ -623,10 +595,10 @@ export const NoteDetailScreen: React.FC = () => {
   const handleWikiLinkPress = async (targetTitle: string) => {
     await NoteRepository.initialize();
     const allNotes = await NoteRepository.findAll();
-    
+
     // Find note matching title case-insensitively
     const match = allNotes.find((n) => n.title.toLowerCase() === targetTitle.toLowerCase());
-    
+
     if (match) {
       // Navigate to details screen for target note ID
       navigation.push('NoteDetail', { noteId: match.id });
@@ -672,11 +644,11 @@ export const NoteDetailScreen: React.FC = () => {
     if (!note) return;
     const structured = StructuredNoteService.fromNote(note);
     const newItems = StructuredNoteService.items(structured).filter((item) => item.id !== itemId);
-    
+
     const title = note.title ? note.title.trim() : '';
-    const isDefault = title === '' || 
-      title.toLowerCase() === 'untitled capture' || 
-      title.toLowerCase() === 'voice capture' || 
+    const isDefault = title === '' ||
+      title.toLowerCase() === 'untitled capture' ||
+      title.toLowerCase() === 'voice capture' ||
       /^(note|list|finance-list)-\d+$/i.test(title);
 
     if (newItems.length === 0 && isDefault) {
@@ -946,7 +918,7 @@ export const NoteDetailScreen: React.FC = () => {
   const handleToggleLock = async () => {
     if (!note) return;
     triggerHaptic('impact');
-    
+
     if (note.isLocked) {
       // Prompt biometrics to unlock
       try {
@@ -1027,10 +999,10 @@ export const NoteDetailScreen: React.FC = () => {
           <TouchableOpacity onPress={handleCreateTag} style={[styles.smallPillButton, { borderColor: colors.border }]}>
             <Caption size="sm" style={{ color: colors.foreground, fontWeight: '600' }}>Add</Caption>
           </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => setShowManageTagsModal(true)} 
+          <TouchableOpacity
+            onPress={() => setShowManageTagsModal(true)}
             style={[
-              styles.smallPillButton, 
+              styles.smallPillButton,
               { borderColor: colors.border, paddingHorizontal: SPACING.sm, width: 38, height: 38 }
             ]}
           >
@@ -1057,7 +1029,7 @@ export const NoteDetailScreen: React.FC = () => {
     if (!note) return;
     const structured = StructuredNoteService.fromNote(note);
     const pending = [...structured.pendingReferenceCommands];
-    
+
     const refToResolve = specificRef || pending[0];
     if (refToResolve) {
       setProcessedPendingRefs((prev) => [...prev, refToResolve]);
@@ -1071,7 +1043,7 @@ export const NoteDetailScreen: React.FC = () => {
         setProcessedPendingRefs((prev) => [...prev, shifted]);
       }
     }
-    
+
     const nextReferences = [
       ...structured.referenceIds.filter((ref) => ref.title !== refToResolve),
       { noteId: targetNote.id, title: refToResolve },
@@ -1090,7 +1062,7 @@ export const NoteDetailScreen: React.FC = () => {
       isLocked: note.isLocked,
       isPinned: note.isPinned,
     });
-    
+
     setCurrentPendingRef(null);
     await fetchNoteDetails();
     await loadNotes();
@@ -1101,17 +1073,17 @@ export const NoteDetailScreen: React.FC = () => {
     setProcessedPendingRefs((prev) => [...prev, currentPendingRef]);
     const structured = StructuredNoteService.fromNote(note);
     const pending = [...structured.pendingReferenceCommands];
-    
+
     const index = pending.indexOf(currentPendingRef);
     if (index > -1) {
       pending.splice(index, 1);
     }
-    
+
     const nextStructured = StructuredNoteService.normalize({
       ...structured,
       pendingReferenceCommands: pending,
     });
-    
+
     await NoteRepository.save({
       id: note.id,
       structuredContentJson: StructuredNoteService.toJson(nextStructured),
@@ -1119,7 +1091,7 @@ export const NoteDetailScreen: React.FC = () => {
       isLocked: note.isLocked,
       isPinned: note.isPinned,
     });
-    
+
     setCurrentPendingRef(null);
     await fetchNoteDetails();
     await loadNotes();
@@ -1133,7 +1105,7 @@ export const NoteDetailScreen: React.FC = () => {
       ...structured,
       pendingReferenceCommands: [],
     });
-    
+
     await NoteRepository.save({
       id: note.id,
       structuredContentJson: StructuredNoteService.toJson(nextStructured),
@@ -1141,7 +1113,7 @@ export const NoteDetailScreen: React.FC = () => {
       isLocked: note.isLocked,
       isPinned: note.isPinned,
     });
-    
+
     setCurrentPendingRef(null);
     await fetchNoteDetails();
     await loadNotes();
@@ -1275,57 +1247,35 @@ export const NoteDetailScreen: React.FC = () => {
       {/* Main content viewport — wrapped in KeyboardAvoidingView so input stays visible */}
       {isEditing ? (
         <KeyboardAvoidingView
-          style={styles.editorContainer}
+          style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
         >
-          <TextInput
-            ref={editorInputRef}
-            style={[styles.contentEditor, { color: colors.foreground, borderColor: colors.border }]}
-            multiline
-            autoFocus
-            value={bodyText}
-            onChangeText={setBodyText}
-            onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
-            selection={selection}
-            textAlignVertical="top"
-            placeholder="Write your note..."
-            placeholderTextColor={colors.placeholder}
-          />
-          <View style={[styles.toolbar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" contentContainerStyle={styles.toolbarScroll}>
-              <TouchableOpacity onPress={() => handleInsertMarkdown('\n# ')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Heading1 size={16} color={colors.foreground} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleInsertMarkdown('\n## ')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Heading2 size={16} color={colors.foreground} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleInsertMarkdown('\n### ')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Heading3 size={16} color={colors.foreground} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleInsertMarkdown('**', '**')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Bold size={16} color={colors.foreground} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleInsertMarkdown('*', '*')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Italic size={16} color={colors.foreground} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleInsertMarkdown('\n- ')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <List size={16} color={colors.foreground} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleInsertMarkdown('\n1. ')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <ListOrdered size={16} color={colors.foreground} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleInsertMarkdown('\n- [ ] ')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <CheckSquare size={16} color={colors.foreground} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleInsertMarkdown('\n```\n', '\n```')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Code size={16} color={colors.foreground} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleInsertMarkdown('\n> ')} style={[styles.toolbarButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Quote size={16} color={colors.foreground} />
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{
+              flexGrow: 1,
+              paddingBottom: 200,
+            }}
+          >
+            <TextInput
+              style={[
+                styles.contentEditor,
+                {
+                  color: colors.foreground,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                },
+              ]}
+              multiline
+              autoFocus
+              value={bodyText}
+              onChangeText={setBodyText}
+              textAlignVertical="top"
+              placeholder="Start typing..."
+              placeholderTextColor={colors.placeholder}
+            />
+          </ScrollView>
         </KeyboardAvoidingView>
       ) : (
         <KeyboardAvoidingView
@@ -1393,14 +1343,14 @@ export const NoteDetailScreen: React.FC = () => {
             {(note.transcriptionStatus === 'queued' ||
               note.transcriptionStatus === 'processing' ||
               note.transcriptionStatus === 'processing_offline') && (
-              <View style={[styles.statusPanel, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-                <Caption size="sm" style={{ color: colors.muted }}>
-                  {note.transcriptionStatus === 'queued'
-                    ? 'Transcription queued (model downloading...)'
-                    : 'Transcribing...'}
-                </Caption>
-              </View>
-            )}
+                <View style={[styles.statusPanel, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+                  <Caption size="sm" style={{ color: colors.muted }}>
+                    {note.transcriptionStatus === 'queued'
+                      ? 'Transcription queued (model downloading...)'
+                      : 'Transcribing...'}
+                  </Caption>
+                </View>
+              )}
 
             {note.transcriptionStatus === 'failed' && (
               <View
@@ -1446,38 +1396,38 @@ export const NoteDetailScreen: React.FC = () => {
               note.transcriptionStatus !== 'processing' &&
               note.transcriptionStatus !== 'processing_offline' &&
               note.transcriptionStatus !== 'failed' && (
-              <View
-                style={[
-                  styles.statusPanel,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    paddingVertical: SPACING.sm,
-                    paddingHorizontal: SPACING.md,
-                  },
-                ]}
-              >
-                <Caption size="sm" style={{ color: colors.muted, flex: 1, marginRight: SPACING.sm }}>
-                  Audio recorded. Tap to transcribe.
-                </Caption>
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: colors.foreground,
-                    paddingHorizontal: SPACING.md,
-                    paddingVertical: SPACING.xs,
-                    borderRadius: 8,
-                  }}
-                  onPress={handleRetryTranscription}
+                <View
+                  style={[
+                    styles.statusPanel,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.surface,
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      paddingVertical: SPACING.sm,
+                      paddingHorizontal: SPACING.md,
+                    },
+                  ]}
                 >
-                  <Body size="sm" style={{ color: colors.background, fontWeight: '700' }}>
-                    Transcribe
-                  </Body>
-                </TouchableOpacity>
-              </View>
-            )}
+                  <Caption size="sm" style={{ color: colors.muted, flex: 1, marginRight: SPACING.sm }}>
+                    Audio recorded. Tap to transcribe.
+                  </Caption>
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: colors.foreground,
+                      paddingHorizontal: SPACING.md,
+                      paddingVertical: SPACING.xs,
+                      borderRadius: 8,
+                    }}
+                    onPress={handleRetryTranscription}
+                  >
+                    <Body size="sm" style={{ color: colors.background, fontWeight: '700' }}>
+                      Transcribe
+                    </Body>
+                  </TouchableOpacity>
+                </View>
+              )}
 
             {detailTab === 'preview' ? (
               <View style={styles.renderViewport}>
@@ -1508,7 +1458,7 @@ export const NoteDetailScreen: React.FC = () => {
                     {structuredNote && structuredNote.pendingReferenceCommands.length > 0 && (
                       <View style={[styles.pendingReferenceBox, { borderColor: colors.border, backgroundColor: colors.surface }]}>
                         <Caption size="sm" style={{ color: colors.muted, marginBottom: SPACING.sm }}>
-                         {`${structuredNote!.pendingReferenceCommands.length} reference ${structuredNote!.pendingReferenceCommands.length === 1 ? 'mention needs' : 'mentions need'} a note selected.`}
+                          {`${structuredNote!.pendingReferenceCommands.length} reference ${structuredNote!.pendingReferenceCommands.length === 1 ? 'mention needs' : 'mentions need'} a note selected.`}
                         </Caption>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                           <View style={styles.referenceChoiceRow}>
@@ -1638,13 +1588,13 @@ export const NoteDetailScreen: React.FC = () => {
               {availableReferenceNotes.filter((n) =>
                 n.title.toLowerCase().includes(pendingRefSearch.toLowerCase())
               ).length === 0 && (
-                <Caption
-                  size="sm"
-                  style={{ color: colors.muted, textAlign: 'center', marginTop: SPACING.xl }}
-                >
-                  No notes found.
-                </Caption>
-              )}
+                  <Caption
+                    size="sm"
+                    style={{ color: colors.muted, textAlign: 'center', marginTop: SPACING.xl }}
+                  >
+                    No notes found.
+                  </Caption>
+                )}
             </ScrollView>
 
             <View style={{ gap: SPACING.sm }}>
@@ -1787,8 +1737,8 @@ const styles = StyleSheet.create({
   bodyTextContainer: {
     minHeight: 180,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    padding: SPACING.md,
+    borderRadius: 16,
+    padding: SPACING.lg,
     marginBottom: SPACING.md,
   },
   detailTitleInput: {
@@ -1938,16 +1888,14 @@ const styles = StyleSheet.create({
   },
   editorContainer: {
     flex: 1,
-    marginBottom: SPACING.xl,
   },
   contentEditor: {
-    flex: 1,
+    minHeight: 700,
     borderWidth: 1,
-    borderRadius: SPACING.sm,
-    padding: SPACING.md,
-    fontFamily: 'monospace',
-    fontSize: 14,
-    lineHeight: 20,
+    borderRadius: 20,
+    padding: 20,
+    fontSize: 18,
+    lineHeight: 30,
   },
   tabsContainer: {
     flexDirection: 'row',
@@ -2235,30 +2183,5 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginTop: SPACING.sm,
-  },
-  toolbar: {
-    height: 48,
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.sm,
-    marginTop: SPACING.xs,
-  },
-  toolbarScroll: {
-    alignItems: 'center',
-    gap: SPACING.xs,
-    paddingRight: SPACING.md,
-  },
-  toolbarButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toolbarButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
 });
