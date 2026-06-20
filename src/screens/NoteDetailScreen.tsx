@@ -237,29 +237,9 @@ export const NoteDetailScreen: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  // Keyboard height state to manually layout viewports and avoid obstruction
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [newlyCreatedItemId, setNewlyCreatedItemId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const showSubscription = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e) => {
-        setKeyboardHeight(e.endCoordinates.height);
-      }
-    );
-    const hideSubscription = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardHeight(0);
-      }
-    );
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
-
+  
   const progressInterval = useRef<any>(null);
 
   const noteRef = useRef<any>(null);
@@ -271,6 +251,9 @@ export const NoteDetailScreen: React.FC = () => {
   const activeDragItemIdRef = useRef<string | null>(null);
   const dragPanY = useRef(new Animated.Value(0)).current;
   const itemLayouts = useRef<{ [id: string]: { y: number; h: number } }>({});
+  const viewportY = useRef(0);
+  const listContainerY = useRef(0);
+  const completedListY = useRef(0);
 
   const panRespondersRef = useRef<{ [id: string]: any }>({});
   const getPanResponder = (id: string, isChecked: boolean) => {
@@ -1006,7 +989,12 @@ export const NoteDetailScreen: React.FC = () => {
     const completedItems = items.filter(item => item.checked);
 
     return (
-      <View style={{ flex: 1 }}>
+      <View
+        style={{ flex: 1 }}
+        onLayout={(e) => {
+          listContainerY.current = e.nativeEvent.layout.y;
+        }}
+      >
         {/* Active Checklist Items */}
         {activeItems.map((item) => {
           const responder = getPanResponder(item.id, false);
@@ -1024,8 +1012,9 @@ export const NoteDetailScreen: React.FC = () => {
                 setTimeout(() => {
                   const layout = itemLayouts.current[item.id];
                   if (layout) {
+                    const targetY =   viewportY.current + listContainerY.current + layout.y - 80;
                     scrollViewRef.current?.scrollTo({
-                      y: Math.max(0, layout.y - 80),
+                      y: Math.max(0, targetY),
                       animated: true,
                     });
                   }
@@ -1130,7 +1119,12 @@ export const NoteDetailScreen: React.FC = () => {
             </TouchableOpacity>
 
             {!isCompletedCollapsed && (
-              <View style={styles.completedList}>
+              <View
+                style={styles.completedList}
+                onLayout={(e) => {
+                  completedListY.current = e.nativeEvent.layout.y;
+                }}
+              >
                 {completedItems.map((item) => {
                   const responder = getPanResponder(item.id, true);
                   return (
@@ -1145,7 +1139,14 @@ export const NoteDetailScreen: React.FC = () => {
                       onAddNext={() => handleInsertChecklistItemAfter(item.id)}
                       onFocus={() => {
                         setTimeout(() => {
-                          scrollViewRef.current?.scrollToEnd({ animated: true });
+                          const layout = itemLayouts.current[item.id];
+                          if (layout) {
+                            const targetY = viewportY.current + listContainerY.current + completedListY.current + layout.y - 80;
+                            scrollViewRef.current?.scrollTo({
+                              y: Math.max(0, targetY),
+                              animated: true,
+                            });
+                          }
                         }, 150);
                       }}
                       panHandlers={responder.panHandlers}
@@ -1410,6 +1411,11 @@ export const NoteDetailScreen: React.FC = () => {
   }
 
   return (
+      <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    keyboardVerticalOffset={0}
+  >
     <ScreenWrapper style={styles.container}>
       {/* Top Header Controls */}
       <View style={styles.header}>
@@ -1513,7 +1519,7 @@ export const NoteDetailScreen: React.FC = () => {
 
       {/* Main content viewport — wrapped in KeyboardAvoidingView so input stays visible */}
       {isEditing ? (
-        <View style={{ flex: 1, paddingBottom: keyboardHeight }}>
+        <View style={{ flex: 1 }}>
           <TextInput
             style={[
               styles.contentEditor,
@@ -1525,6 +1531,8 @@ export const NoteDetailScreen: React.FC = () => {
             ]}
             multiline
             autoFocus
+            scrollEnabled
+            textAlignVertical="top"
             value={bodyText}
             onChangeText={setBodyText}
             placeholder="Start typing..."
@@ -1532,8 +1540,8 @@ export const NoteDetailScreen: React.FC = () => {
           />
         </View>
       ) : (
-        <View style={{ flex: 1, paddingBottom: keyboardHeight }}>
-          {/* Segment Selector Tabs */}
+        <View style={{ flex: 1 }}>
+        {/* Segment Selector Tabs */}
           <View style={styles.tabsContainer}>
             <TouchableOpacity
               onPress={() => {
@@ -1572,7 +1580,10 @@ export const NoteDetailScreen: React.FC = () => {
           <ScrollView
             ref={scrollViewRef}
             style={styles.scrollView}
-            contentContainerStyle={{ paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 120 }}
+            keyboardDismissMode="interactive"
+            contentContainerStyle={{
+              paddingBottom: 120
+            }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             scrollEnabled={activeDragItemId === null}
@@ -1682,7 +1693,12 @@ export const NoteDetailScreen: React.FC = () => {
               )}
 
             {detailTab === 'preview' ? (
-              <View style={styles.renderViewport}>
+              <View
+                style={styles.renderViewport}
+                onLayout={(e) => {
+                  viewportY.current = e.nativeEvent.layout.y;
+                }}
+              >
                 {(note.type === 'list' || note.type === 'finance') && renderStatsBanner()}
                 {note.type === 'list' || note.type === 'finance' ? (
                   renderKeepListEditor()
@@ -1978,6 +1994,7 @@ export const NoteDetailScreen: React.FC = () => {
         </View>
       </Modal>
     </ScreenWrapper>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -2350,13 +2367,13 @@ const styles = StyleSheet.create({
   },
   keepAddRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginTop: SPACING.md,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: SPACING.md,
     minHeight: 48,
-    paddingVertical: 8,
+    paddingVertical: 4,
   },
   keepAddInput: {
     flex: 1,
