@@ -1,6 +1,6 @@
 {
   "name": "com.ideatik.app",
-  "version": "1.0.5",
+  "version": "1.1.1",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
@@ -22,11 +22,13 @@
     "react-native": "0.86.0",
     "react-native-audio-record": "^0.2.2",
     "react-native-background-actions": "^4.1.0",
+    "react-native-document-picker": "^9.3.1",
     "react-native-fs": "^2.20.0",
     "react-native-mmkv": "^4.3.1",
     "react-native-nitro-modules": "^0.35.9",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-screens": "^4.25.2",
+    "react-native-share": "^12.3.1",
     "react-native-sound": "^0.13.0",
     "react-native-sqlite-storage": "^6.0.1",
     "react-native-svg": "^15.15.5",

@@ -30,19 +30,18 @@
 
 ## Voice Commands Reference
 
-All commands are parsed from the transcribed speech after recording ends using a robust clause-by-clause NLP sequence processor. The parser automatically splits speech using punctuation or transitions (like `and` or `then`), allowing fluid run-on dictation.
+All commands are parsed from the transcribed speech after recording ends using a robust clause-by-clause processor. The parser automatically splits speech using punctuation, newlines, or connectives (like `and`, `then`, `also`, `plus`), allowing fluid dictation.
 
 | Command | Syntax | Example |
 |---------|--------|---------|
-| **Create Checklist** | `create list` / `make a list` / `start checklist` / `create checklist` | `create checklist` |
-| **Create Finance Ledger** | `create finance list` / `make ledger` / `create financial list` | `create finance list` |
-| **Add Item** | `add item <text>` / `add <text>` / `add <text> to list` | `add milk` |
-| **Add Finance Item** | `add <text> <number>` / `add <text> amount <number>` / `add <text> cost <number>` | `add rent 1200 rupees` / `add groceries cost 150` |
-| **Link Note / Reference** | `add reference here` | `add reference here` |
-| **Save & Finish** | `end note` / `finish note` / `save note` / `stop recording` | `end note` |
+| **Create Checklist** | `create list` / `start checklist` / `make todo` / `checklist` | `create checklist` |
+| **Create Finance Ledger** | `create finance list` / `make ledger` / `budget list` / `ledger` | `create finance list` |
+| **Add Item (One-Go / Split)** | `add <text>` / `add <text> and <text>` / `<text> <text> <text>` | `apples bananas oranges` (splits into 3 items) / `fresh milk` (keeps intact) |
+| **Add Finance Item (One-Go / Split)** | `add <text> <number>` / `<text> <number> <text> <number>` | `rent 500 rupees coffee 50` (splits and adds amounts) |
+| **Link Note / Reference** | `add reference here` / `link reference` / `insert citation` | `add refrence hear` (tolerant to misspellings) |
 
 > [!NOTE]
-> Titles are manually named by the user. If not provided, Ideatik names automatically (`note-1`, `list-1`, `finance-list-1`).
+> Titles are manually named by the user in the app UI. If not provided, Ideatik generates default titles automatically (`note-1`, `list-1`, `finance-list-1`).
 
 ### Full Voice Flow Examples
 
@@ -50,10 +49,10 @@ All commands are parsed from the transcribed speech after recording ends using a
 > "Today we discussed the roadmap. Key action is to ship by Friday. add reference here"
 
 **Voice Checklist:**
-> "create list. add milk then add eggs and add bread. end note."
+> "create list. fresh milk organic eggs chocolate."
 
 **Finance Ledger:**
-> "create finance list. add rent 1200 rupees. add groceries 150. end note."
+> "create finance list. rent 1200 coffee 50."
 
 ---
 

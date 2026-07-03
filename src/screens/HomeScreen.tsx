@@ -10,12 +10,13 @@ import {
   PanResponder,
   LayoutAnimation,
   UIManager,
+  Alert,
 } from 'react-native';
 import { ScreenWrapper, PressableScale } from '../components/ScreenWrapper';
 import { Heading, Body, Caption, Label } from '../components/Typography';
 import { SPACING, COLORS, TYPOGRAPHY, RADIUS, SHADOWS, ANIMATION } from '../theme/theme';
 import { useSettingsStore } from '../features/settings/settingsStore';
-import { Mic, RotateCcw, Save, Trash2, FileText, CheckSquare, Lock, IndianRupee, Pin, ChevronUp, ChevronDown } from 'lucide-react-native';
+import { Mic, RotateCcw, Save, Trash2, FileText, CheckSquare, Lock, IndianRupee, Pin, ChevronUp, ChevronDown, FileUp } from 'lucide-react-native';
 import { NoteRepository } from '../services/database/NoteRepository';
 import { StructuredNoteService } from '../services/notes/StructuredNoteService';
 
@@ -238,6 +239,65 @@ export const HomeScreen: React.FC = () => {
     navigation.navigate('NoteDetail', { noteId });
   };
 
+  const handleImportReadme = async () => {
+    triggerHaptic('impact');
+    try {
+      const DocumentPicker = require('react-native-document-picker').default;
+      const res = await DocumentPicker.pickSingle({
+        type: [DocumentPicker.types.allFiles],
+      });
+
+      if (!res.uri) return;
+
+      const RNFS = require('react-native-fs');
+      const content = await RNFS.readFile(res.uri, 'utf8');
+
+      // Validate H1 header
+      const hasH1 = /^#\s+(.+)$/m.test(content);
+      if (!hasH1) {
+        Alert.alert(
+          'Invalid Structure',
+          'The selected file does not appear to be a valid Ideatik note. A valid note must contain a title starting with a "#" heading.'
+        );
+        return;
+      }
+
+      const parsedContent = StructuredNoteService.fromMarkdown(content);
+      const noteId = Math.random().toString(36).substr(2, 9);
+      
+      await NoteRepository.save({
+        id: noteId,
+        title: parsedContent.title,
+        type: parsedContent.type,
+        markdownContent: content,
+        structuredContentJson: StructuredNoteService.toJson(parsedContent),
+        transcript: parsedContent.bodyBlocks.join('\n\n'),
+        references: parsedContent.referenceIds.map((r: any) => r.title),
+        referenceLinks: parsedContent.referenceIds,
+      });
+
+      await loadNotes();
+      Alert.alert(
+        'Import Success',
+        `Successfully imported "${parsedContent.title}"!`,
+        [
+          {
+            text: 'Open Note',
+            onPress: () => navigation.navigate('NoteDetail', { noteId }),
+          },
+          { text: 'OK' },
+        ]
+      );
+    } catch (err) {
+      const DocumentPicker = require('react-native-document-picker').default;
+      if (DocumentPicker.isCancel(err)) {
+        return;
+      }
+      console.warn('Import failed:', err);
+      Alert.alert('Import Failed', 'Failed to import the markdown file.');
+    }
+  };
+
   // ── Recovery state ──────────────────────────────────────────────────────
   const [recoverySnapshot, setRecoverySnapshot] = useState<RecordingSnapshot | null>(null);
   const [isHandlingRecovery, setIsHandlingRecovery] = useState(false);
@@ -289,6 +349,13 @@ export const HomeScreen: React.FC = () => {
       RecoveryManager.checkForOrphanedRecording().then((snapshot) => {
         setRecoverySnapshot(snapshot);
       });
+      // Trigger dictionary cleanup of unused words
+      try {
+        const { useDictionaryStore } = require('../features/dictionary/dictionaryStore');
+        useDictionaryStore.getState().cleanupUnusedWords();
+      } catch (err) {
+        console.warn('HomeScreen: Failed to run dictionary cleanup:', err);
+      }
     }, [loadNotes])
   );
 
@@ -779,6 +846,17 @@ export const HomeScreen: React.FC = () => {
                 Finance
               </Caption>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleImportReadme}
+              style={[styles.quickActionCard, { borderColor: colors.border }]}
+              activeOpacity={0.7}
+            >
+              <FileUp size={14} color={colors.foreground} />
+              <Caption size="sm" style={[styles.quickActionText, { color: colors.foreground }]}>
+                Import Note (.txt)
+              </Caption>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -1021,6 +1099,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    flexWrap: 'wrap',
     gap: SPACING.md,
     marginTop: SPACING.lg,
   },

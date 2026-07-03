@@ -148,3 +148,34 @@ jest.mock('@react-native-clipboard/clipboard', () => ({
   getString: jest.fn(() => Promise.resolve('')),
   hasString: jest.fn(() => Promise.resolve(false)),
 }));
+
+// Mock react-native-share
+jest.mock('react-native-share', () => ({
+  default: {
+    open: jest.fn(() => Promise.resolve()),
+    shareSingle: jest.fn(() => Promise.resolve()),
+  },
+  open: jest.fn(() => Promise.resolve()),
+  shareSingle: jest.fn(() => Promise.resolve()),
+}));
+
+// Mock react-native-document-picker
+jest.mock('react-native-document-picker', () => {
+  const mockTypes = {
+    allFiles: 'allFiles',
+    audio: 'audio',
+    images: 'images',
+    plainText: 'plainText',
+    pdf: 'pdf',
+  };
+  return {
+    default: {
+      pickSingle: jest.fn(() => Promise.resolve({ uri: 'test-uri', name: 'test-file.md' })),
+      pick: jest.fn(() => Promise.resolve([])),
+      isCancel: jest.fn(() => false),
+      types: mockTypes,
+    },
+    types: mockTypes,
+  };
+});
+

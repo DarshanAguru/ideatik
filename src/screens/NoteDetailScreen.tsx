@@ -630,6 +630,31 @@ export const NoteDetailScreen: React.FC = () => {
     await loadNotes();
   };
 
+  const handleDeleteNote = () => {
+    triggerHaptic('impact');
+    Alert.alert(
+      'Delete Note',
+      'Are you sure you want to delete this note? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await NoteRepository.delete(note.id);
+              triggerHaptic('success');
+              navigation.goBack();
+            } catch (error) {
+              console.error('Failed to delete note:', error);
+              Alert.alert('Error', 'Failed to delete the note.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleUpdateTitle = (newTitle: string) => {
     setNoteTitle(newTitle);
     if (!note) return;
@@ -929,7 +954,7 @@ export const NoteDetailScreen: React.FC = () => {
     const parts = bodyText.split(/(\[\d+\])/g);
     return (
       <View style={[styles.bodyTextContainer, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-        <Body size="md" style={{ color: colors.foreground, lineHeight: 24 }}>
+        <Body size="md" style={{ color: colors.foreground, lineHeight: 24 }} onPress={() => setIsEditing(true)}>
           {parts.map((part, index) => {
             const isBracket = /^\[\d+\]$/.test(part);
             if (!isBracket) {
@@ -1450,6 +1475,9 @@ export const NoteDetailScreen: React.FC = () => {
             <TouchableOpacity onPress={showExportOptions} style={styles.actionButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Share2 size={18} color={colors.foreground} />
             </TouchableOpacity>
+            <TouchableOpacity onPress={handleDeleteNote} style={styles.actionButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Trash2 size={18} color={colors.error} />
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => setIsEditing(true)} style={styles.actionButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Edit3 size={18} color={colors.foreground} />
             </TouchableOpacity>
@@ -1535,6 +1563,7 @@ export const NoteDetailScreen: React.FC = () => {
             textAlignVertical="top"
             value={bodyText}
             onChangeText={setBodyText}
+            onBlur={handleSaveContent}
             placeholder="Start typing..."
             placeholderTextColor={colors.placeholder}
           />

@@ -39,10 +39,9 @@ export const ShareOptionsModal: React.FC<ShareOptionsModalProps> = ({
   const [isExporting, setIsExporting] = useState(false);
 
   const exportOptions: ExportOption[] = [
-    { id: '1', label: 'Text (.txt)', icon: FileText, format: 'txt' },
-    { id: '2', label: 'Markdown (.md)', icon: File, format: 'md' },
-    { id: '3', label: 'PDF (.pdf)', icon: File, format: 'pdf' },
-    { id: '5', label: 'Copy as Markdown', icon: Copy, format: 'copy' },
+    { id: '1', label: 'Copy as Markdown', icon: Copy, format: 'copy' },
+    { id: '2', label: 'Share as PDF', icon: FileText, format: 'pdf' },
+    { id: '3', label: 'Share as Readme (.txt)', icon: File, format: 'md' },
   ];
 
   // Add audio option only if note has recording
@@ -68,26 +67,27 @@ export const ShareOptionsModal: React.FC<ShareOptionsModalProps> = ({
       }
 
       let exportedFile: ExportedFile;
+      let mimeType = '*/*';
 
       switch (format) {
-        case 'txt':
-          exportedFile = await ExportService.exportToTxt(note);
-          break;
         case 'md':
           exportedFile = await ExportService.exportToMd(note);
+          mimeType = 'text/plain';
           break;
         case 'pdf':
           exportedFile = await ExportService.exportToPdf(note);
+          mimeType = 'application/pdf';
           break;
         case 'audio':
           exportedFile = await ExportService.exportAudio(note, 'wav');
+          mimeType = 'audio/wav';
           break;
         default:
           throw new Error('Unknown format');
       }
 
       // Open share sheet
-      await ExportService.shareFile(exportedFile);
+      await ExportService.shareFile(exportedFile, mimeType);
       
       // Close modal on success
       setIsExporting(false);
@@ -215,10 +215,12 @@ export const ShareOptionsModal: React.FC<ShareOptionsModalProps> = ({
                       }}
                     >
                       {option.format === 'audio'
-                        ? 'Share your voice memo'
+                        ? 'Share the voice recording audio memo'
                         : option.format === 'copy'
-                        ? 'Copy note content to clipboard'
-                        : `Share as ${option.label.split('(')[1]?.slice(0, -1) || 'file'}`}
+                        ? 'Copy note/list content to clipboard'
+                        : option.format === 'pdf'
+                        ? 'Share a formatted PDF document of the note/list'
+                        : 'Share note/list as a text file with markdown formatting'}
                     </Text>
                   </View>
                 </TouchableOpacity>

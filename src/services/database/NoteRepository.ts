@@ -86,6 +86,22 @@ class NoteRepositoryClass {
         audioUri: finalAudioUri,
       });
 
+      // Extract checklist and finance items from structured note, check for multi-word items, and add to dictionary
+      try {
+        const { useDictionaryStore } = require('../../features/dictionary/dictionaryStore');
+        const items = [
+          ...(structured.listItems || []),
+          ...(structured.financeItems || []),
+        ];
+        for (const item of items) {
+          if (item.text) {
+            useDictionaryStore.getState().addWord(item.text);
+          }
+        }
+      } catch (err) {
+        console.warn('NoteRepository: Error syncing words to dictionary store:', err);
+      }
+
       // Save metadata to SQLite
       await DatabaseService.execute(
         `INSERT OR REPLACE INTO notes (

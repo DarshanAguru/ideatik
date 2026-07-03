@@ -282,7 +282,7 @@ export const SettingsScreen: React.FC = () => {
         {/* Section: Application Info */}
         <View style={styles.infoSection}>
           <Caption size="xs" style={[styles.centerText, { color: colors.muted }]}>
-            Ideatik v1.0.5 • open-source
+            Ideatik v1.1.1 • open-source
           </Caption>
           <Caption size="xs" style={[styles.centerText, { color: colors.muted }]}>
             Made with ❤️ by Darshan

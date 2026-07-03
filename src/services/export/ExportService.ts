@@ -1,5 +1,5 @@
 import RNFS from 'react-native-fs';
-import { Share } from 'react-native';
+import Share from 'react-native-share';
 import { jsPDF } from 'jspdf';
 import { Buffer } from 'buffer';
 import { StructuredNoteService } from '../notes/StructuredNoteService';
@@ -97,16 +97,16 @@ class ExportServiceClass {
   }
 
   /**
-   * Exports a note/list as a markdown (.md) file.
+   * Exports a note/list as a markdown formatted text (.txt) file.
    */
   async exportToMd(note: any): Promise<ExportedFile> {
     const dir = await this.ensureExportDirectoryExists();
     const sanitizedTitle = this.sanitizeFileName(note.title);
-    const filePath = `${dir}/${sanitizedTitle}.md`;
+    const filePath = `${dir}/${sanitizedTitle}.txt`;
 
     let content = StructuredNoteService.toMarkdown(StructuredNoteService.fromNote(note));
     await RNFS.writeFile(filePath, content, 'utf8');
-    return { filePath, fileName: `${sanitizedTitle}.md` };
+    return { filePath, fileName: `${sanitizedTitle}.txt` };
   }
 
   /**
@@ -146,8 +146,8 @@ class ExportServiceClass {
     doc.setTextColor(0, 0, 0);
     const structured = StructuredNoteService.fromNote(note);
     const items = StructuredNoteService.items(structured);
+    let y = 120;
     if (note.type === 'list' || note.type === 'finance') {
-      let y = 120;
       let totalAmount = 0;
       let checkedAmount = 0;
       let totalItems = 0;
@@ -218,10 +218,11 @@ class ExportServiceClass {
         doc.text(`Total Amount: ${totalAmount}`, 300, y + 35);
         doc.text(`Completed Amount: ${checkedAmount}`, 300, y + 50);
       }
+      y = y + 60;
     } else {
       // Wrapped text for notes
       const lines = doc.splitTextToSize(StructuredNoteService.bodyText(structured), 515);
-      let y = 120;
+      y = 120;
       doc.setFontSize(10);
       for (const line of lines) {
         if (y > 780) {
@@ -235,11 +236,10 @@ class ExportServiceClass {
 
     // References Section
     if (structured.referenceIds.length > 0) {
-      let y = doc.internal.pageSize.getHeight() - 100;
-      // If footer section overlaps, draw on next page
-      if (y < 200) {
+      y += 30;
+      if (y > 780) {
         doc.addPage();
-        y = 700;
+        y = 50;
       }
       doc.setLineWidth(0.5);
       doc.setDrawColor(200, 200, 200);
@@ -252,6 +252,10 @@ class ExportServiceClass {
       
       let refY = y + 30;
       for (const ref of structured.referenceIds) {
+        if (refY > 780) {
+          doc.addPage();
+          refY = 50;
+        }
         doc.text(`- ${ref.title}`, 40, refY);
         refY += 15;
       }
@@ -288,14 +292,15 @@ class ExportServiceClass {
   }
 
   /**
-   * Triggers the Android Native Share Sheet for a generated file.
+   * Triggers the Native Share Sheet using react-native-share.
    */
-  async shareFile(file: ExportedFile): Promise<void> {
+  async shareFile(file: ExportedFile, mimeType?: string): Promise<void> {
     const shareUrl = `file://${file.filePath}`;
-    await Share.share({
-      title: `Export: ${file.fileName}`,
+    await Share.open({
+      title: file.fileName,
       url: shareUrl,
-      message: `Exporting note: ${file.fileName}`,
+      type: mimeType || '*/*',
+      failOnCancel: false,
     });
   }
 }

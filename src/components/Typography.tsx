@@ -7,13 +7,14 @@ interface TypographyProps {
   children: React.ReactNode;
   style?: StyleProp<TextStyle>;
   numberOfLines?: number;
+  onPress?: () => void;
 }
 
 // ─── Heading ─────────────────────────────────────────────────────────────────
 
 export const Heading: React.FC<
   TypographyProps & { size?: 'sm' | 'md' | 'lg' | 'xl' | 'xxl' | 'xxxl' | 'display' }
-> = ({ children, style, size = 'xl', numberOfLines }) => {
+> = ({ children, style, size = 'xl', numberOfLines, onPress }) => {
   const themeMode = useSettingsStore((state) => state.themeMode);
   const colors = COLORS[themeMode];
 
@@ -23,6 +24,7 @@ export const Heading: React.FC<
   return (
     <RNText
       numberOfLines={numberOfLines}
+      onPress={onPress}
       style={[
         styles.heading,
         {
@@ -48,6 +50,7 @@ export const Subheading: React.FC<TypographyProps & { size?: 'sm' | 'md' | 'lg' 
   style,
   size = 'md',
   numberOfLines,
+  onPress,
 }) => {
   const themeMode = useSettingsStore((state) => state.themeMode);
   const colors = COLORS[themeMode];
@@ -58,6 +61,7 @@ export const Subheading: React.FC<TypographyProps & { size?: 'sm' | 'md' | 'lg' 
   return (
     <RNText
       numberOfLines={numberOfLines}
+      onPress={onPress}
       style={[
         styles.subheading,
         {
@@ -81,6 +85,7 @@ export const Body: React.FC<TypographyProps & { size?: 'sm' | 'md' | 'lg' }> = (
   style,
   size = 'md',
   numberOfLines,
+  onPress,
 }) => {
   const themeMode = useSettingsStore((state) => state.themeMode);
   const colors = COLORS[themeMode];
@@ -91,6 +96,7 @@ export const Body: React.FC<TypographyProps & { size?: 'sm' | 'md' | 'lg' }> = (
   return (
     <RNText
       numberOfLines={numberOfLines}
+      onPress={onPress}
       style={[
         styles.body,
         {

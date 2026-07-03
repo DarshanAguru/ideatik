@@ -38,112 +38,57 @@ export const HelpScreen: React.FC = () => {
           </Heading>
 
           <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Set Title</Body>
-            <Caption size="sm" style={[styles.cmdSyntax, { color: colors.accent || colors.muted }]}>
-              title start {'<your title>'} end
-            </Caption>
-            <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              Say "title start" followed by your desired title, and end with "end". This is the exclusive title command.
-              {'\n'}Example: "title start My Grocery List end"
-            </Caption>
-          </View>
-
-          <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Create Checklist</Body>
             <Caption size="sm" style={[styles.cmdSyntax, { color: colors.accent || colors.muted }]}>
-              create list · make a list · start checklist
+              create list · start checklist · make todo · checklist
             </Caption>
             <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              Switches the note type to a checklist.{'\n'}
-              Example: "create list"
+              Switches note to a checklist. Supports conversational words and mispronunciations.
             </Caption>
           </View>
 
           <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Create Finance Ledger</Body>
             <Caption size="sm" style={[styles.cmdSyntax, { color: colors.accent || colors.muted }]}>
-              create finance list · make ledger · start financial list
+              create finance list · make ledger · budget list · ledger
             </Caption>
             <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              Switches to a finance tracking list with amounts.{'\n'}
-              Example: "create finance list"
+              Switches to a ledger for tracking expenses/amounts.
             </Caption>
           </View>
 
           <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Add Item to List</Body>
+            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Add Checklist Items</Body>
             <Caption size="sm" style={[styles.cmdSyntax, { color: colors.accent || colors.muted }]}>
-              add item {'<text>'} · add {'<text>'} to list
+              add {"<item>"} · add {"<item A>"} add {"<item B>"}
             </Caption>
             <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              Adds a checklist item.{'\n'}
-              Examples:{'\n'}
-              • "add item milk"{'\n'}
-              • "add eggs to list"
+              "add" is the only item splitter. Everything after "add" until the next "add" becomes one list entry — words like "and", "also", "then" are preserved as part of the item name (e.g. "add apple juice and mango" stays as one item).
             </Caption>
           </View>
 
           <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Add Finance Item with Amount</Body>
+            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Add Finance / Ledger Items</Body>
             <Caption size="sm" style={[styles.cmdSyntax, { color: colors.accent || colors.muted }]}>
-              add item {'<text>'} amount {'<number>'}
+              add {"<desc>"} cost {"<amount>"} · add rent cost twelve thousand
             </Caption>
             <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              Adds a finance item with a numeric amount.{'\n'}
-              Example: "add item groceries amount 45.50"
+              Use "add" to start each entry. The word "cost" separates the description from the amount. Amounts can be spoken as digits or English words (e.g. "twelve thousand fifty rupees" → ₹12,050). Repeat "add" to add the next entry.
             </Caption>
           </View>
 
           <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Link / Reference another Note</Body>
             <Caption size="sm" style={[styles.cmdSyntax, { color: colors.accent || colors.muted }]}>
-              add reference here
+              add reference here · link reference · insert citation
             </Caption>
             <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              Inserts a sequential reference slot token like [1], [2] at the current point of dictation. You will be prompted to choose which note to link once the recording finishes.{'\n'}
-              Example: "Today I need to prepare for the party. add reference here. call the team."
+              Inserts a sequential reference slot like [1], [2] to link another note. Extremely tolerant to misspellings/pronunciations (e.g. "add refrence hear", "difference hear").
             </Caption>
           </View>
 
-          <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Save / Finish Recording</Body>
-            <Caption size="sm" style={[styles.cmdSyntax, { color: colors.accent || colors.muted }]}>
-              end note · finish note · save note · stop recording
-            </Caption>
-            <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              Triggers auto-save and ends the recording session.{'\n'}
-              Example: "end note" or "save note"
-            </Caption>
-          </View>
         </View>
 
-        {/* Section: Typical Usage Flows */}
-        <View style={styles.section}>
-          <Heading size="sm" style={[styles.sectionTitle, { color: colors.foreground }]}>
-            💡 Usage Examples
-          </Heading>
-
-          <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Full Voice Note</Body>
-            <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              "title start Meeting Notes end. Today we discussed the product roadmap. Key actions are to finalize the design and ship by Friday."
-            </Caption>
-          </View>
-
-          <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Voice Checklist</Body>
-            <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              "title start Grocery Run end. create list. add item milk. add item eggs. add item bread. end note."
-            </Caption>
-          </View>
-
-          <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Voice Finance Ledger</Body>
-            <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              "title start Monthly Expenses end. create finance list. add item rent amount 1200. add item groceries amount 150. add item electricity amount 60. end note."
-            </Caption>
-          </View>
-        </View>
 
         {/* Section: Manual Usage */}
         <View style={styles.section}>
