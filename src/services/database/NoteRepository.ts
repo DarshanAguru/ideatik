@@ -132,6 +132,15 @@ class NoteRepositoryClass {
           transcriptionError || null,
         ]
       );
+
+      // Coalesced indexing runs after persistence, keeping the write path fast
+      // and allowing retrieval to reuse vectors across app launches.
+      try {
+        const { LocalVectorIndex } = require('../ai/LocalVectorIndex');
+        LocalVectorIndex.schedule(note.id);
+      } catch (error) {
+        console.warn('NoteRepository: Failed to schedule local indexing:', error);
+      }
     } catch (e) {
       console.error(`NoteRepository: Failed to save note ${note.id}:`, e);
       throw e;

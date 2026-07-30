@@ -70,6 +70,25 @@ class DatabaseServiceClass {
           createdAt INTEGER NOT NULL
         );
       `);
+
+      // Vectors are stored separately from note metadata so retrieval never
+      // needs to re-embed an unchanged capture.
+      await this.db.executeSql(`
+        CREATE TABLE IF NOT EXISTS note_vectors (
+          chunkId TEXT PRIMARY KEY,
+          noteId TEXT NOT NULL,
+          text TEXT NOT NULL,
+          vectorJson TEXT NOT NULL,
+          contentHash TEXT NOT NULL,
+          updatedAt INTEGER NOT NULL
+        );
+      `);
+      await this.db.executeSql(`
+        CREATE TABLE IF NOT EXISTS vector_index_jobs (
+          noteId TEXT PRIMARY KEY,
+          queuedAt INTEGER NOT NULL
+        );
+      `);
       
       // Create indexes
       await this.db.executeSql(`
@@ -78,6 +97,7 @@ class DatabaseServiceClass {
       await this.db.executeSql(`
         CREATE INDEX IF NOT EXISTS idx_notes_type ON notes(type) WHERE isDeleted = 0;
       `);
+      await this.db.executeSql(`CREATE INDEX IF NOT EXISTS idx_note_vectors_note_id ON note_vectors(noteId);`);
       
       this.isSqliteAvailable = true;
       this.isInitialized = true;
@@ -303,6 +323,8 @@ class DatabaseServiceClass {
       // 1. Clear SQLite notes
       if (this.isSqliteAvailable && this.db) {
         await this.db.executeSql('DELETE FROM notes;');
+        await this.db.executeSql('DELETE FROM note_vectors;');
+        await this.db.executeSql('DELETE FROM vector_index_jobs;');
       }
       
       // 2. Clear MMKV metadata

@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { HomeScreen } from './HomeScreen';
 import { NotesScreen } from './NotesScreen';
+import { ChatScreen } from './ChatScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { ProfileScreen } from './ProfileScreen';
 import { RecordingScreen } from './RecordingScreen';
@@ -13,16 +14,18 @@ import { HelpScreen } from './HelpScreen';
 import { COLORS, TYPOGRAPHY } from '../theme/theme';
 import { useSettingsStore } from '../features/settings/settingsStore';
 import { useSecurityStore } from '../features/security/securityStore';
-import { Home, FileText, Settings, User } from 'lucide-react-native';
+import { Home, FileText, BrainCircuit, Settings, User } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackgroundTaskManager } from '../services/background/BackgroundTaskManager';
 import { WhisperService } from '../services/whisper/WhisperService';
+import { SystemNotificationService } from '../services/notifications/SystemNotificationService';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 const HomeIcon = ({ color }: { color: string }) => <Home size={20} color={color} />;
 const NotesIcon = ({ color }: { color: string }) => <FileText size={20} color={color} />;
+const ChatIcon = ({ color }: { color: string }) => <BrainCircuit size={20} color={color} />;
 const SettingsIcon = ({ color }: { color: string }) => <Settings size={20} color={color} />;
 const ProfileIcon = ({ color }: { color: string }) => <User size={20} color={color} />;
 
@@ -79,6 +82,11 @@ const TabNavigator = () => {
         options={{ tabBarLabel: 'Notes', tabBarIcon: NotesIcon }}
       />
       <Tab.Screen
+        name="ChatTab"
+        component={ChatScreen}
+        options={{ tabBarLabel: 'Ask', tabBarIcon: ChatIcon }}
+      />
+      <Tab.Screen
         name="SettingsTab"
         component={SettingsScreen}
         options={{ tabBarLabel: 'Settings', tabBarIcon: SettingsIcon }}
@@ -99,6 +107,13 @@ export const AppNavigator: React.FC = () => {
 
   useEffect(() => {
     if (!isOnboarded) return;
+    SystemNotificationService.requestPermission().catch(() => undefined);
+    try {
+      const { LocalVectorIndex } = require('../services/ai/LocalVectorIndex');
+      LocalVectorIndex.resumePending();
+    } catch (error) {
+      console.warn('Local vector index resume failed:', error);
+    }
     BackgroundTaskManager.initialize()
       .then(() => BackgroundTaskManager.startProcessing())
       .catch((e) => console.warn('Background transcription init failed:', e));
@@ -122,7 +137,13 @@ export const AppNavigator: React.FC = () => {
   };
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer
+      theme={navTheme}
+      linking={{
+        prefixes: ['ideatik://'],
+        config: { screens: { NoteDetail: 'note/:noteId' } },
+      }}
+    >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!isOnboarded ? (
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />

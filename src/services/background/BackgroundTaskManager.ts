@@ -2,7 +2,6 @@
  * BackgroundTaskManager - Manages background transcription processing (offline-only)
  */
 
-import { Platform, ToastAndroid } from 'react-native';
 import BackgroundService from 'react-native-background-actions';
 import { TranscriptionQueue, QueuedTranscription } from '../queue/TranscriptionQueue';
 import { WhisperService } from '../whisper/WhisperService';
@@ -11,6 +10,7 @@ import { CommandParser } from '../parsers/CommandParser';
 import { StructuredNote } from '../parsers/types';
 import { StructuredNoteService } from '../notes/StructuredNoteService';
 import { useNotesStore } from '../../features/notes/notesStore';
+import { SystemNotificationService } from '../notifications/SystemNotificationService';
 
 const sleep = (time: number) => new Promise<void>((resolve) => setTimeout(() => resolve(), time));
 
@@ -190,10 +190,21 @@ class BackgroundTaskManagerClass {
       transcriptionError: undefined,
     });
 
+    try {
+      const { LocalVectorIndex } = require('../ai/LocalVectorIndex');
+      LocalVectorIndex.schedule(noteId);
+    } catch (e) {
+      console.warn('BackgroundTaskManager: Failed to schedule vector embedding', e);
+    }
+
     await useNotesStore.getState().loadNotes();
 
     const displayTitle = finalTitle && finalTitle !== 'Untitled Capture' ? finalTitle : 'Voice Note';
-    this.showNotification(`✓ Transcribed: "${displayTitle}"`, 'success');
+    await SystemNotificationService.notify({
+      title: 'Transcription complete',
+      body: `“${displayTitle}” is ready.`,
+      noteId,
+    });
   }
 
   /**
@@ -247,7 +258,11 @@ class BackgroundTaskManagerClass {
         transcriptionError: errorMsg,
       });
       await useNotesStore.getState().loadNotes();
-      this.showNotification(`✗ Failed: ${item.noteTitle}`, 'error');
+      await SystemNotificationService.notify({
+        title: 'Transcription needs attention',
+        body: `“${item.noteTitle}” could not be transcribed.`,
+        noteId: item.noteId,
+      });
     } finally {
       try {
         await WhisperService.release();
@@ -255,14 +270,6 @@ class BackgroundTaskManagerClass {
       } catch (e) {
         console.warn('BackgroundTaskManager: Whisper cleanup failed:', e);
       }
-    }
-  }
-
-  private showNotification(message: string, type: 'success' | 'error'): void {
-    if (Platform.OS === 'android') {
-      ToastAndroid.show(message, ToastAndroid.LONG);
-    } else {
-      console.log(`[${type.toUpperCase()}] ${message}`);
     }
   }
 

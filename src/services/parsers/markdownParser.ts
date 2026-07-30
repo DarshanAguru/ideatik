@@ -56,17 +56,18 @@ class MarkdownParserClass {
       }
 
       // 4. Checklist Item
-      // Matches: "- [ ] milk", "* [x] bread", "- [ ] eggs: 3.50", "- [x] gasoline: -40", "- [ ] apple $2.50"
+      // Matches: "- [ ] milk", "* [x] bread", "- [ ] eggs: 3.50", "- [x] gasoline: -40", "- [ ] Hotel: Rs. 18,000"
       const checklistMatch = trimmed.match(/^[-*]\s+\[([ xX])\]\s+(.+)$/);
       if (checklistMatch) {
         const checked = checklistMatch[1].toLowerCase() === 'x';
         let itemText = checklistMatch[2].trim();
         let amount: number | undefined;
 
-        // Extract amount from end of string: e.g. ": 4.50", ": $4.50", " $4.50", " 4.50"
-        const amountMatch = itemText.match(/(?::\s*|\s+)\$?(-?\d+(?:\.\d+)?)$/);
+        // Extract amount from end of string: e.g. ": 4.50", ": Rs. 18,000", ": ₹18,000", ": $4.50", " 18,000"
+        const amountMatch = itemText.match(/(?::\s*|\s+)(?:rs\.?|₹|\$)?\s*(-?[\d,]+(?:\.\d+)?)$/i);
         if (amountMatch) {
-          const parsedVal = parseFloat(amountMatch[1]);
+          const cleanNum = amountMatch[1].replace(/,/g, '');
+          const parsedVal = parseFloat(cleanNum);
           if (!isNaN(parsedVal)) {
             amount = parsedVal;
             itemText = itemText.substring(0, itemText.length - amountMatch[0].length).trim();
@@ -97,13 +98,24 @@ class MarkdownParserClass {
       }
 
       // 5. Bullet List Item
-      // Matches: "- item", "* item", ignoring checkbox formats
+      // Matches: "- item", "* item", "- Hotel: Rs. 18,000", ignoring checkbox formats
       const bulletMatch = trimmed.match(/^[-*]\s+(.+)$/);
       if (bulletMatch) {
-        const itemText = bulletMatch[1].trim();
-        
+        let itemText = bulletMatch[1].trim();
+        let amount: number | undefined;
+
         // Prevent matching checklists that failed regex 4
         if (!itemText.startsWith('[ ]') && !itemText.startsWith('[x]') && !itemText.startsWith('[X]')) {
+          const amountMatch = itemText.match(/(?::\s*|\s+)(?:rs\.?|₹|\$)?\s*(-?[\d,]+(?:\.\d+)?)$/i);
+          if (amountMatch) {
+            const cleanNum = amountMatch[1].replace(/,/g, '');
+            const parsedVal = parseFloat(cleanNum);
+            if (!isNaN(parsedVal)) {
+              amount = parsedVal;
+              itemText = itemText.substring(0, itemText.length - amountMatch[0].length).trim();
+            }
+          }
+
           const itemId = `item_${itemIndex++}`;
           const matchItem = existingItems.find(
             (ei) => ei.text.toLowerCase() === itemText.toLowerCase()
@@ -112,11 +124,14 @@ class MarkdownParserClass {
           result.items.push({
             id: matchItem ? matchItem.id : itemId,
             text: itemText,
+            amount,
             checked: false,
             isChecklist: false,
           });
 
-          if (result.type === 'note') {
+          if (amount !== undefined) {
+            result.type = 'finance';
+          } else if (result.type === 'note') {
             result.type = 'list';
           }
           return;

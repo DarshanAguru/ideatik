@@ -1,58 +1,65 @@
-# Ideatik
+# Ideatik (v2.0.0)
 
-**Ideatik** is a **100% offline, privacy-first voice capture app** built in React Native. It converts natural voice input into structured notes, interactive checklists, and detailed financial ledgers — entirely on your device, with no internet required.
+**Ideatik** is a **100% offline, privacy-first voice capture & local AI intelligence notebook** built with React Native. It converts natural voice input into structured notes, interactive checklists, and detailed financial ledgers — operating entirely on your device with complete data privacy.
+
+---
+
+## What's New in v2.0.0
+
+- **Google Keep-Style Dynamic Masonry Grid** — 2-column dynamic tile layout with content-driven height, full item previews (unchecked first, checked below), and persistent long-press drag-and-drop reordering.
+- **Compact List View** — Single-row list format with checklist item counts, paid vs pending finance breakdowns (`Done: ₹3,000 • Pending: ₹1,500 • Total: ₹4,500`), and generous touch-friendly spacing.
+- **Silent AI Ready Indicator** — Notes complete vector indexing silently in the background without intrusive notification popups, displaying an AI ✨ badge directly on cards when query-ready.
+- **Official Qwen 2.5 1.5B AI Engine** — Upgraded on-device RAG engine featuring official Qwen 2.5 1.5B Instruct (890 MB) + BGE Small v1.5 for high-precision math calculations, percentage breakdowns, concept Q&A, and bullet-point summarization.
+- **Refined Chat with Notes & Guardrails** — Dedicated "Ask" tab with warm, natural intent for notebook calculations, word definitions, and summaries, with strict domain guardrails against general AI misuse.
+- **Keyboard-Aware Layouts** — KeyboardAvoidingView with safe-area insets across Android and iOS so search bars and text inputs never hide behind the keyboard.
 
 ---
 
 ## Key Features
 
-- **Fully Offline Transcription Engine**:
-  - All speech-to-text runs **on-device** using `whisper.rn` — no data ever leaves your phone.
-  - Powered by **`ggml-large-v3-turbo-q5_0`** (~547MB) — the best quantized Whisper model for mobile, delivering near-server-level accuracy offline.
-  - **Automatic WAV Chunking**: Long recordings (>30s) are split into 30-second segments, transcribed sequentially, and merged — preventing memory issues and improving reliability on large files.
-  - **Retry on Failure**: If transcription fails (e.g. model not yet loaded), the note's audio is preserved and a **Retry** button is shown to re-queue it instantly.
+- **100% Offline Transcription**
+  - Speech-to-text runs on-device via `whisper.rn` — no audio or text ever leaves your device.
+  - Sequentially transcribes long recordings in 30-second chunks with automated queue recovery.
 
-- **Voice Command Parser**: Spoken commands auto-structure your recording into notes, checklists, or finance ledgers.
-- **Flexible Note Types**:
-  - **Notes**: Standard rich-text with wiki-link backlink support.
-  - **Checklists**: Dynamic todo lists with collapsible completed sections.
-  - **Finance Ledgers**: Items with amounts, auto-totals, spent/remaining summaries in ₹.
-- **Indian Rupee (₹) Localization**: Fully localized for Indian Rupees (₹). Supports voice commands like `add coffee 50 rupees`.
-- **Manual Creation**: Create Notes, Lists, or Finance ledgers from the home screen — no voice required.
-- **Granular Biometric Security**: Lock individual notes with device fingerprint / face recognition.
-- **Background Queue Processing**: Audio is queued and transcribed by a background worker after recording. Shows `queued`, `transcribing...`, and completion states.
-- **Deduplicated Incremental Titles**: Notes are named sequentially (`note-1`, `list-1`, `finance-list-1`). During recording a placeholder title is shown.
-- **Live Search & Filters**: Instant full-text search across titles, transcripts, and checklist items. Filter by type, tags, and date range.
-- **Tags**: Create color-coded tags, assign them to any note, and filter by them.
-- **Adaptive Dark / Light Theme**: Minimalist design with smooth system-respecting palettes.
+- **Offline Knowledge Engine & RAG (Ask Tab)**
+  - Natural Q&A, finance breakdowns, percentage calculations, and bullet-point summaries.
+  - Hybrid search combining 384-dim BGE vector embeddings (0.65 weight) + exact keyword overlap (0.35 weight).
+  - Financial calculations are computed deterministically from parsed note JSON for 100% math accuracy.
+
+- **Voice Command NLP**
+  - `add <text>` — clean checklist item creation.
+  - `add <desc> cost <amount>` — finance item creation with automatic spoken numeric parsing ("twelve thousand fifty rupees" → `12050`).
+
+- **Flexible Note Types & Dynamic Views**
+  - **Notes** — Rich Markdown with backlink reference support.
+  - **Checklists** — Reorderable todo items with collapsible completed sections.
+  - **Finance Ledgers** — Line-item costs, auto-totals, paid vs pending status, and budget tracking.
+
+- **Security & Privacy** — Lock sensitive notes with device biometrics (fingerprint / Face ID) or device passcode.
+- **Export & Import** — Export to Markdown (`.txt`), PDF, or raw audio (`.wav`). Import `.txt` Markdown notes.
+- **Granular Search & Tagging** — Full-text search across titles, transcripts, and checklist items with tag filtering.
 
 ---
 
 ## Voice Commands Reference
 
-All commands are parsed from the transcribed speech after recording ends using a robust clause-by-clause processor. The parser automatically splits speech using punctuation, newlines, or connectives (like `and`, `then`, `also`, `plus`), allowing fluid dictation.
-
 | Command | Syntax | Example |
 |---------|--------|---------|
-| **Create Checklist** | `create list` / `start checklist` / `make todo` / `checklist` | `create checklist` |
-| **Create Finance Ledger** | `create finance list` / `make ledger` / `budget list` / `ledger` | `create finance list` |
-| **Add Item (One-Go / Split)** | `add <text>` / `add <text> and <text>` / `<text> <text> <text>` | `apples bananas oranges` (splits into 3 items) / `fresh milk` (keeps intact) |
-| **Add Finance Item (One-Go / Split)** | `add <text> <number>` / `<text> <number> <text> <number>` | `rent 500 rupees coffee 50` (splits and adds amounts) |
-| **Link Note / Reference** | `add reference here` / `link reference` / `insert citation` | `add refrence hear` (tolerant to misspellings) |
+| Create Note | `create note` | `create note` |
+| Create Checklist | `create list` / `start checklist` | `create list` |
+| Create Finance Ledger | `create finance list` / `make ledger` | `create finance list` |
+| Add Checklist Item | `add <text>` | `add get groceries` |
+| Add Multiple Items | `add <text> add <text>` | `add milk add eggs add bread` |
+| Add Finance Item | `add <desc> cost <amount>` | `add lunch cost two hundred rupees` |
+| Link Reference | `add reference here` | `add reference here` |
 
-> [!NOTE]
-> Titles are manually named by the user in the app UI. If not provided, Ideatik generates default titles automatically (`note-1`, `list-1`, `finance-list-1`).
+---
 
-### Full Voice Flow Examples
+## Recommended Offline AI Models
 
-**Voice Note:**
-> "Today we discussed the roadmap. Key action is to ship by Friday. add reference here"
-
-**Voice Checklist:**
-> "create list. fresh milk organic eggs chocolate."
-
-**Finance Ledger:**
-> "create finance list. rent 1200 coffee 50."
+- **LLM**: Qwen 2.5 1.5B Instruct GGUF (`qwen2.5-1.5b-instruct-q3_k_m.gguf` ~890 MB)
+- **Embeddings**: BGE Small EN v1.5 GGUF (`bge-small-en-v1.5-q4_k_m.gguf` ~25 MB)
+- **Transcription**: Whisper Base EN GGML (`ggml-base.en-q5_1.bin` ~148 MB)
 
 ---
 
@@ -60,77 +67,21 @@ All commands are parsed from the transcribed speech after recording ends using a
 
 ```
 src/
-├── components/          # Shared UI (FilterBar, Typography, ScreenWrapper, TagBadge…)
-├── features/            # State stores (recording, notes, settings, tags, security)
-├── screens/             # Full screens (Home, Notes, NoteDetail, Recording, Settings…)
+├── components/          # Shared UI (RagResponseView, FilterBar, Typography, ScreenWrapper…)
+├── features/            # Zustand stores (notes, recording, settings, tags, security)
+├── screens/             # App Screens (Home, Notes, Chat, NoteDetail, Settings, Help…)
 └── services/
-    ├── audio/           # AudioService (record/pause/stop), AudioPlayerService
-    ├── background/      # BackgroundTaskManager (queue-based offline transcription)
+    ├── ai/              # SmartRagService, LocalVectorIndex, OfflineAiModelService
+    ├── audio/           # AudioService, AudioPlayerService
     ├── database/        # SQLite (DatabaseService, NoteRepository)
-    ├── formatters/      # CustomNoteFormatter (export)
-    ├── notes/           # StructuredNoteService (note ↔ JSON content model)
-    ├── parsers/         # CommandParser (voice NLP), markdownParser, noteFormatter, types
-    ├── queue/           # TranscriptionQueue
-    ├── recovery/        # AutosaveManager, RecoveryManager, recordingSnapshot
-    ├── search/          # SearchService (full-text + filter + sort)
-    └── whisper/         # WhisperService (model download, context, chunking, transcription)
+    ├── export/          # ExportService (Markdown, PDF, WAV)
+    ├── notes/           # StructuredNoteService (Note ↔ JSON content model)
+    ├── parsers/         # CommandParser (Voice NLP), markdownParser, noteFormatter
+    └── search/          # SearchService (Full-text + Tag filter + Date sort)
 ```
 
 ---
 
-## Offline Model
+## License
 
-| Model | Size | Speed | Accuracy |
-|---|---|---|---|
-| `ggml-small.en-q5_1` | ~190MB | ⚡ Fast | ⭐⭐⭐⭐ Great for mobile |
-
-The model is downloaded once from Hugging Face via **Settings → Download Offline Model** and stored permanently on-device. No internet is required after download. The model cannot be deleted to ensure transcription always works.
-
----
-
-## Standalone Installation Guide
-
-### Android (Standalone APK)
-
-Ensure **USB Debugging** is enabled and your device is connected.
-
-1. **Clean previous build artifacts:**
-   ```bash
-   cd android && ./gradlew clean && cd ..
-   ```
-
-2. **Build the Release APK:**
-   ```bash
-   cd android && ./gradlew assembleRelease && cd ..
-   ```
-   Output: `android/app/build/outputs/apk/release/app-release.apk`
-
-3. **Install on device:**
-   ```bash
-   adb install android/app/build/outputs/apk/release/app-release.apk
-   ```
-
-> Alternatively: `npx react-native run-android --mode=release`
-
----
-
-## Development Setup
-
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-2. **Start Metro:**
-   ```bash
-   npm start
-   ```
-
-3. **Run on device:**
-   - Android: `npm run android`
-   - iOS: `cd ios && pod install && cd .. && npm run ios`
-
-4. **Reset Metro cache** (if you see stale bundle errors):
-   ```bash
-   npm start -- --reset-cache
-   ```
+Created with ❤️ by **Darshan** • Privacy-first, open-source productivity utility.

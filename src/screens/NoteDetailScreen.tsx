@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { StyleSheet, View, TextInput, ScrollView, TouchableOpacity, Alert, Dimensions, ActivityIndicator, Modal, Text, KeyboardAvoidingView, Platform, PanResponder, Animated, LayoutAnimation, UIManager, Keyboard } from 'react-native';
+import { StyleSheet, View, TextInput, ScrollView, TouchableOpacity, Alert, Dimensions, ActivityIndicator, Modal, Text, KeyboardAvoidingView, Platform, PanResponder, Animated, LayoutAnimation, UIManager, Keyboard, AppState, findNodeHandle } from 'react-native';
 import Tts from 'react-native-tts';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { ScreenWrapper } from '../components/ScreenWrapper';
@@ -44,39 +44,80 @@ const ChecklistItemRow = ({
   const [localText, setLocalText] = useState(item.text);
   const [localAmount, setLocalAmount] = useState(item.amount !== undefined ? String(item.amount) : '');
   const inputRef = useRef<any>(null);
+  // Per-item autosave debounce — saves 500ms after the user stops typing
+  const itemSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Keep latest text/amount in refs so the debounce closure always reads fresh values
+  const latestText = useRef(localText);
+  const latestAmount = useRef(localAmount);
 
   useEffect(() => {
     setLocalText(item.text);
+    latestText.current = item.text;
   }, [item.text]);
 
   useEffect(() => {
-    setLocalAmount(item.amount !== undefined ? String(item.amount) : '');
+    const a = item.amount !== undefined ? String(item.amount) : '';
+    setLocalAmount(a);
+    latestAmount.current = a;
   }, [item.amount]);
 
   useEffect(() => {
     if (autoFocus && inputRef.current) {
-      inputRef.current.focus();
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+        const node = findNodeHandle(inputRef.current) || inputRef.current;
+        onFocus?.(node, item.id);
+      }, 80);
+      return () => clearTimeout(timer);
     }
-  }, [autoFocus]);
+  }, [autoFocus, onFocus, item.id]);
 
+  // Schedule a debounced save — 500ms after last keystroke
+  const scheduleItemSave = (text: string, amount: string) => {
+    latestText.current = text;
+    latestAmount.current = amount;
+    if (itemSaveTimer.current) clearTimeout(itemSaveTimer.current);
+    itemSaveTimer.current = setTimeout(() => {
+      itemSaveTimer.current = null;
+      const nextAmount = isFinance ? parseFloat(latestAmount.current) || 0 : undefined;
+      onUpdate(item.id, latestText.current.trim(), nextAmount);
+    }, 500);
+  };
+
+  // Flush immediately on blur (belt-and-suspenders — ensures save even if
+  // the user taps away before the 500ms debounce fires).
   const handleBlur = () => {
-    const nextAmount = isFinance ? parseFloat(localAmount) || 0 : undefined;
+    if (itemSaveTimer.current) {
+      clearTimeout(itemSaveTimer.current);
+      itemSaveTimer.current = null;
+    }
+    const nextAmount = isFinance ? parseFloat(latestAmount.current) || 0 : undefined;
     const currentAmount = item.amount || 0;
-    if (localText.trim() !== item.text || (isFinance && nextAmount !== currentAmount)) {
-      onUpdate(item.id, localText.trim(), nextAmount);
+    if (latestText.current.trim() !== item.text || (isFinance && nextAmount !== currentAmount)) {
+      onUpdate(item.id, latestText.current.trim(), nextAmount);
     }
   };
 
   const handleChangeText = (text: string) => {
     if (text.endsWith('\n')) {
+      // Enter key — commit immediately and jump to next item
+      if (itemSaveTimer.current) clearTimeout(itemSaveTimer.current);
+      itemSaveTimer.current = null;
       const cleanText = text.slice(0, -1);
       setLocalText(cleanText);
-      const nextAmount = isFinance ? parseFloat(localAmount) || 0 : undefined;
+      latestText.current = cleanText;
+      const nextAmount = isFinance ? parseFloat(latestAmount.current) || 0 : undefined;
       onUpdate(item.id, cleanText.trim(), nextAmount);
       onAddNext?.();
     } else {
       setLocalText(text);
+      scheduleItemSave(text, latestAmount.current);
     }
+  };
+
+  const handleAmountChange = (amount: string) => {
+    setLocalAmount(amount);
+    scheduleItemSave(latestText.current, amount);
   };
 
   const handleKeyPress = ({ nativeEvent }: any) => {
@@ -123,7 +164,7 @@ const ChecklistItemRow = ({
         value={localText}
         onChangeText={handleChangeText}
         onBlur={handleBlur}
-        onFocus={onFocus}
+        onFocus={(e) => onFocus?.(e.nativeEvent.target, item.id)}
         onKeyPress={handleKeyPress}
         placeholder="List item"
         placeholderTextColor={colors.placeholder}
@@ -135,9 +176,9 @@ const ChecklistItemRow = ({
         <TextInput
           style={[styles.keepAmountInput, { color: colors.foreground }]}
           value={localAmount}
-          onChangeText={setLocalAmount}
+          onChangeText={handleAmountChange}
           onBlur={handleBlur}
-          onFocus={onFocus}
+          onFocus={(e) => onFocus?.(e.nativeEvent.target, item.id)}
           keyboardType="numeric"
           placeholder="₹0.00"
           placeholderTextColor={colors.placeholder}
@@ -243,6 +284,9 @@ export const NoteDetailScreen: React.FC = () => {
   const progressInterval = useRef<any>(null);
 
   const noteRef = useRef<any>(null);
+  const noteTitleRef = useRef('');
+  const bodyTextRef = useRef('');
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const addItemInputRef = useRef<any>(null);
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -255,10 +299,8 @@ export const NoteDetailScreen: React.FC = () => {
   const listContainerY = useRef(0);
   const completedListY = useRef(0);
 
-  const panRespondersRef = useRef<{ [id: string]: any }>({});
   const getPanResponder = (id: string, isChecked: boolean) => {
-    if (!panRespondersRef.current[id]) {
-      panRespondersRef.current[id] = PanResponder.create({
+    return PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
         onPanResponderGrant: () => {
@@ -299,13 +341,21 @@ export const NoteDetailScreen: React.FC = () => {
             }
 
             if (closestId) {
-              const fromIndex = items.findIndex((it) => it.id === draggingId);
-              const toIndex = items.findIndex((it) => it.id === closestId);
+              // Rows are rendered in unchecked/checked sections. Reorder within
+              // that section so a completed item can never be inserted using an
+              // index from the hidden/other section.
+              const groupItems = items.filter((item) => item.checked === isChecked);
+              const fromIndex = groupItems.findIndex((it) => it.id === draggingId);
+              const toIndex = groupItems.findIndex((it) => it.id === closestId);
 
               if (fromIndex !== -1 && toIndex !== -1) {
-                const nextItems = [...items];
-                const [movedItem] = nextItems.splice(fromIndex, 1);
-                nextItems.splice(toIndex, 0, movedItem);
+                const reorderedGroup = [...groupItems];
+                const [movedItem] = reorderedGroup.splice(fromIndex, 1);
+                reorderedGroup.splice(toIndex, 0, movedItem);
+                const otherGroup = items.filter((item) => item.checked !== isChecked);
+                const nextItems = isChecked
+                  ? [...otherGroup, ...reorderedGroup]
+                  : [...reorderedGroup, ...otherGroup];
 
                 const nextStructured = {
                   ...structured,
@@ -347,14 +397,20 @@ export const NoteDetailScreen: React.FC = () => {
           dragPanY.setValue(0);
         }
       });
-    }
-    return panRespondersRef.current[id];
   };
 
   // Keep noteRef in sync without causing re-renders
   useEffect(() => {
     noteRef.current = note;
   }, [note]);
+
+  useEffect(() => {
+    noteTitleRef.current = noteTitle;
+  }, [noteTitle]);
+
+  useEffect(() => {
+    bodyTextRef.current = bodyText;
+  }, [bodyText]);
 
   useEffect(() => {
     fetchNoteDetails();
@@ -571,10 +627,12 @@ export const NoteDetailScreen: React.FC = () => {
   };
 
   // Note Lifecycle Saves
-  const handleSaveContent = async () => {
+  const handleSaveContent = async (closeEditor = true) => {
     if (!note) return;
 
-    const title = noteTitle ? noteTitle.trim() : '';
+    const currentTitle = noteTitleRef.current;
+    const currentBodyText = bodyTextRef.current;
+    const title = currentTitle ? currentTitle.trim() : '';
     const isDefault = title === '' ||
       title.toLowerCase() === 'untitled' ||
       title.toLowerCase() === 'untitled note' ||
@@ -582,7 +640,7 @@ export const NoteDetailScreen: React.FC = () => {
       title.toLowerCase() === 'voice capture' ||
       /^(note|list|finance-list)-\d+$/i.test(title);
 
-    if (note.type === 'note' && bodyText.trim() === '' && isDefault) {
+    if (closeEditor && note.type === 'note' && currentBodyText.trim() === '' && isDefault) {
       console.log('Ideatik: Deleting empty untitled note. Purging note and navigating back.');
       await NoteRepository.purge(note.id);
       await loadNotes();
@@ -594,7 +652,7 @@ export const NoteDetailScreen: React.FC = () => {
 
     // Scan bodyText for [1], [2], etc.
     const bracketRegex = /\[\d+\]/g;
-    const foundSlots = bodyText.match(bracketRegex) || [];
+    const foundSlots = currentBodyText.match(bracketRegex) || [];
     const uniqueSlots = Array.from(new Set(foundSlots));
 
     // Keep only referenceLinks that match one of the foundSlots
@@ -607,7 +665,7 @@ export const NoteDetailScreen: React.FC = () => {
     const nextStructured = StructuredNoteService.normalize({
       ...structured,
       title: title || 'Untitled',
-      bodyBlocks: [bodyText],
+      bodyBlocks: [currentBodyText],
       referenceIds: nextReferences,
       pendingReferenceCommands: newPending,
     });
@@ -625,7 +683,7 @@ export const NoteDetailScreen: React.FC = () => {
       isPinned: note.isPinned,
     });
 
-    setIsEditing(false);
+    if (closeEditor) setIsEditing(false);
     await fetchNoteDetails();
     await loadNotes();
   };
@@ -656,7 +714,9 @@ export const NoteDetailScreen: React.FC = () => {
   };
 
   const handleUpdateTitle = (newTitle: string) => {
+    noteTitleRef.current = newTitle;
     setNoteTitle(newTitle);
+    scheduleAutosave();
     if (!note) return;
 
     const structured = StructuredNoteService.fromNote(note);
@@ -695,6 +755,39 @@ export const NoteDetailScreen: React.FC = () => {
     await NoteRepository.save(updatedNote);
     await loadNotes();
   };
+
+  const scheduleAutosave = useCallback(() => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
+      handleSaveContent(false).catch((error) => console.warn('Note autosave failed:', error));
+    }, 500);
+  // handleSaveContent intentionally reads current editor state/refs at run time.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note]);
+
+  const flushAutosave = useCallback(() => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    return handleSaveContent(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note]);
+
+  useEffect(() => {
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active') flushAutosave().catch((error) => console.warn('Background autosave failed:', error));
+    });
+    const unsubscribe = navigation.addListener('beforeRemove', () => {
+      flushAutosave().catch((error) => console.warn('Navigation autosave failed:', error));
+    });
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+      appStateSubscription.remove();
+      unsubscribe();
+    };
+  }, [flushAutosave, navigation]);
 
   const renderStatsBanner = () => {
     if (!note) return null;
@@ -824,7 +917,30 @@ export const NoteDetailScreen: React.FC = () => {
     });
     await fetchNoteDetails();
     await loadNotes();
+    requestAnimationFrame(() => {
+      if (addItemInputRef.current) {
+        keepChecklistInputVisible(addItemInputRef.current);
+      }
+    });
   };
+
+  const keepChecklistInputVisible = useCallback((input: any, itemId?: string) => {
+    if (itemId && itemLayouts.current[itemId] && scrollViewRef.current) {
+      const targetY = (listContainerY.current || 0) + itemLayouts.current[itemId].y - 80;
+      requestAnimationFrame(() => {
+        scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY), animated: true });
+      });
+      return;
+    }
+    if (!input) return;
+    const node = typeof input === 'number' ? input : findNodeHandle(input);
+    if (!node || !scrollViewRef.current) return;
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        (scrollViewRef.current as any)?.scrollResponderScrollNativeHandleToKeyboard(node, 180, true);
+      }, 50);
+    });
+  }, []);
 
   const handleInsertChecklistItemAfter = async (itemId: string, text: string = '', amount?: number) => {
     if (!note) return;
@@ -1033,18 +1149,7 @@ export const NoteDetailScreen: React.FC = () => {
               onUpdate={handleUpdateChecklistItem}
               isFinance={note.type === 'finance'}
               onAddNext={() => handleInsertChecklistItemAfter(item.id)}
-              onFocus={() => {
-                setTimeout(() => {
-                  const layout = itemLayouts.current[item.id];
-                  if (layout) {
-                    const targetY =   viewportY.current + listContainerY.current + layout.y - 80;
-                    scrollViewRef.current?.scrollTo({
-                      y: Math.max(0, targetY),
-                      animated: true,
-                    });
-                  }
-                }, 150);
-              }}
+              onFocus={keepChecklistInputVisible}
               panHandlers={responder.panHandlers}
               isDragging={activeDragItemId === item.id}
               dragPanY={dragPanY}
@@ -1083,10 +1188,8 @@ export const NoteDetailScreen: React.FC = () => {
             }}
             multiline={true}
             blurOnSubmit={false}
-            onFocus={() => {
-              setTimeout(() => {
-                scrollViewRef.current?.scrollToEnd({ animated: true });
-              }, 100);
+            onFocus={(e) => {
+              keepChecklistInputVisible(e.nativeEvent.target);
             }}
           />
           {note.type === 'finance' && (
@@ -1098,10 +1201,8 @@ export const NoteDetailScreen: React.FC = () => {
               onChangeText={setNewItemAmount}
               keyboardType="numeric"
               returnKeyType="done"
-              onFocus={() => {
-                setTimeout(() => {
-                  scrollViewRef.current?.scrollToEnd({ animated: true });
-                }, 100);
+              onFocus={(e) => {
+                keepChecklistInputVisible(e.nativeEvent.target);
               }}
               onSubmitEditing={() => {
                 if (newItemText.trim()) {
@@ -1162,18 +1263,7 @@ export const NoteDetailScreen: React.FC = () => {
                       onUpdate={handleUpdateChecklistItem}
                       isFinance={note.type === 'finance'}
                       onAddNext={() => handleInsertChecklistItemAfter(item.id)}
-                      onFocus={() => {
-                        setTimeout(() => {
-                          const layout = itemLayouts.current[item.id];
-                          if (layout) {
-                            const targetY = viewportY.current + listContainerY.current + completedListY.current + layout.y - 80;
-                            scrollViewRef.current?.scrollTo({
-                              y: Math.max(0, targetY),
-                              animated: true,
-                            });
-                          }
-                        }, 150);
-                      }}
+                      onFocus={keepChecklistInputVisible}
                       panHandlers={responder.panHandlers}
                       isDragging={activeDragItemId === item.id}
                       dragPanY={dragPanY}
@@ -1438,7 +1528,7 @@ export const NoteDetailScreen: React.FC = () => {
   return (
       <KeyboardAvoidingView
     style={{ flex: 1 }}
-    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     keyboardVerticalOffset={0}
   >
     <ScreenWrapper style={styles.container}>
@@ -1456,12 +1546,8 @@ export const NoteDetailScreen: React.FC = () => {
           {note.type === 'finance' ? 'Finance Ledger' : note.type === 'list' ? 'Checklist' : 'Note'}
         </Heading>
 
-        {isEditing ? (
-          <TouchableOpacity onPress={handleSaveContent} style={styles.actionButton}>
-            <Check size={20} color={colors.foreground} />
-          </TouchableOpacity>
-        ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {!isEditing && <>
             <TouchableOpacity onPress={handleTogglePin} style={styles.actionButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Pin size={18} color={colors.foreground} fill={note?.isPinned ? colors.foreground : 'none'} style={note?.isPinned ? { transform: [{ rotate: '45deg' }] } : undefined} />
             </TouchableOpacity>
@@ -1478,11 +1564,14 @@ export const NoteDetailScreen: React.FC = () => {
             <TouchableOpacity onPress={handleDeleteNote} style={styles.actionButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Trash2 size={18} color={colors.error} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setIsEditing(true)} style={styles.actionButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            </>}
+            <TouchableOpacity onPress={() => {
+              if (isEditing) flushAutosave();
+              setIsEditing((editing) => !editing);
+            }} style={styles.actionButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Edit3 size={18} color={colors.foreground} />
             </TouchableOpacity>
           </View>
-        )}
       </View>
 
       {/* Audio Player Component Panel */}
@@ -1562,8 +1651,12 @@ export const NoteDetailScreen: React.FC = () => {
             scrollEnabled
             textAlignVertical="top"
             value={bodyText}
-            onChangeText={setBodyText}
-            onBlur={handleSaveContent}
+            onChangeText={(text) => {
+              bodyTextRef.current = text;
+              setBodyText(text);
+              scheduleAutosave();
+            }}
+            onBlur={() => flushAutosave()}
             placeholder="Start typing..."
             placeholderTextColor={colors.placeholder}
           />
@@ -1611,7 +1704,7 @@ export const NoteDetailScreen: React.FC = () => {
             style={styles.scrollView}
             keyboardDismissMode="interactive"
             contentContainerStyle={{
-              paddingBottom: 120
+              paddingBottom: 340
             }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
@@ -2040,9 +2133,9 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   detailTitleInput: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginVertical: SPACING.md,
+    fontSize: 19,
+    fontWeight: '600',
+    marginVertical: SPACING.sm,
     paddingHorizontal: SPACING.xs,
     borderBottomWidth: 1,
     borderBottomColor: 'transparent',
@@ -2083,8 +2176,8 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 8,
     padding: SPACING.md,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 22,
   },
   statusPanel: {
     borderWidth: StyleSheet.hairlineWidth,
@@ -2191,9 +2284,9 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 1,
     borderRadius: 20,
-    padding: 20,
-    fontSize: 18,
-    lineHeight: 30,
+    padding: 16,
+    fontSize: 15,
+    lineHeight: 22,
     textAlignVertical: 'top',
   },
   tabsContainer: {

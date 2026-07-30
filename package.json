@@ -1,6 +1,6 @@
 {
   "name": "com.ideatik.app",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
@@ -17,6 +17,7 @@
     "@react-navigation/native-stack": "^7.17.5",
     "buffer": "^6.0.3",
     "jspdf": "^4.2.1",
+    "llama.rn": "^0.12.8",
     "lucide-react-native": "^1.18.0",
     "react": "19.2.3",
     "react-native": "0.86.0",

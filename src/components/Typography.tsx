@@ -7,6 +7,7 @@ interface TypographyProps {
   children: React.ReactNode;
   style?: StyleProp<TextStyle>;
   numberOfLines?: number;
+  ellipsizeMode?: 'head' | 'middle' | 'tail' | 'clip';
   onPress?: () => void;
 }
 
@@ -119,6 +120,7 @@ export const Caption: React.FC<TypographyProps & { size?: 'xs' | 'sm' }> = ({
   style,
   size = 'sm',
   numberOfLines,
+  ellipsizeMode,
 }) => {
   const themeMode = useSettingsStore((state) => state.themeMode);
   const colors = COLORS[themeMode];
@@ -129,6 +131,7 @@ export const Caption: React.FC<TypographyProps & { size?: 'xs' | 'sm' }> = ({
   return (
     <RNText
       numberOfLines={numberOfLines}
+      ellipsizeMode={ellipsizeMode}
       style={[
         styles.caption,
         {

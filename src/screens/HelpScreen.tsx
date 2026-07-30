@@ -87,6 +87,16 @@ export const HelpScreen: React.FC = () => {
             </Caption>
           </View>
 
+          <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Ask AI / Chat with Notes (Offline RAG)</Body>
+            <Caption size="sm" style={[styles.cmdSyntax, { color: colors.accent || colors.muted }]}>
+              "what was my goa trip food expense?" · "summarize meeting" · "what is the meaning of API?"
+            </Caption>
+            <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
+              Ask natural language queries in the Chat tab. Calculate expense totals, budget percentages, summaries, or word definitions from your notebook — completely offline.
+            </Caption>
+          </View>
+
         </View>
 
 

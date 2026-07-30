@@ -11,6 +11,7 @@ import {
   LayoutAnimation,
   UIManager,
   Alert,
+  TextInput,
 } from 'react-native';
 import { ScreenWrapper, PressableScale } from '../components/ScreenWrapper';
 import { Heading, Body, Caption, Label } from '../components/Typography';
@@ -89,6 +90,9 @@ export const HomeScreen: React.FC = () => {
   const recentNotes = useMemo(() => {
     const pinnedIds = new Set(pinnedNotes.map((n) => n.id));
     const list = notesList.filter((n) => !pinnedIds.has(n.id) && !n.isDeleted);
+    // Notes absent from a saved manual order retain the repository's newest-first
+    // order. This makes newly captured notes appear naturally without overwriting
+    // the user's custom arrangement.
     const sorted = [...list].sort((a, b) => {
       const idxA = recentOrder.indexOf(a.id);
       const idxB = recentOrder.indexOf(b.id);
@@ -238,6 +242,7 @@ export const HomeScreen: React.FC = () => {
     await loadNotes();
     navigation.navigate('NoteDetail', { noteId });
   };
+
 
   const handleImportReadme = async () => {
     triggerHaptic('impact');
@@ -546,7 +551,10 @@ export const HomeScreen: React.FC = () => {
               </Caption>
             ) : item.type === 'list' ? (
               <View style={styles.listPreviewContainer}>
-                {structured.listItems.slice(0, 3).map((listItem: any) => (
+                {[...structured.listItems]
+                  .sort((a: any, b: any) => Number(a.checked) - Number(b.checked))
+                  .slice(0, 3)
+                  .map((listItem: any) => (
                   <View style={styles.miniListItem} key={listItem.id}>
                     {listItem.checked ? (
                       <CheckSquare size={11} color={colors.muted} />
@@ -576,52 +584,77 @@ export const HomeScreen: React.FC = () => {
             ) : item.type === 'finance' ? (
               <View style={styles.financePreviewContainer}>
                 {(() => {
-                  const total = structured.financeItems.reduce(
-                    (acc: number, current: any) => acc + (current.amount || 0),
-                    0
-                  );
+                  const items = structured.financeItems || [];
+                  const total = items.reduce((acc: number, cur: any) => acc + (cur.amount || 0), 0);
+                  const paid = items.filter((i: any) => i.checked).reduce((acc: number, cur: any) => acc + (cur.amount || 0), 0);
+                  const pending = items.filter((i: any) => !i.checked).reduce((acc: number, cur: any) => acc + (cur.amount || 0), 0);
+
                   return (
-                    <View style={{ marginBottom: 4 }}>
-                      <Caption
-                        size="xs"
-                        style={{
-                          color: total >= 0 ? colors.foreground : colors.error,
-                          fontWeight: '700',
-                        }}
-                      >
-                        Net: {total >= 0 ? '+' : '-'}₹{Math.abs(total).toFixed(0)}
-                      </Caption>
+                    <View style={{ marginBottom: 6 }}>
+                      <View style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        backgroundColor: colors.surface,
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: RADIUS.xs,
+                        borderWidth: StyleSheet.hairlineWidth,
+                        borderColor: colors.border,
+                      }}>
+                        <Caption size="xs" style={{ color: colors.muted, fontWeight: '600' }}>
+                          Total
+                        </Caption>
+                        <Caption size="xs" style={{ color: colors.foreground, fontWeight: '700' }}>
+                          ₹{Math.abs(total).toLocaleString('en-IN')}
+                        </Caption>
+                      </View>
+
+                      {items.some((i: any) => i.checked) && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 3, paddingHorizontal: 2 }}>
+                          <Caption size="xs" style={{ color: colors.muted, fontSize: 10 }}>
+                            Done: ₹{Math.abs(paid).toLocaleString('en-IN')}
+                          </Caption>
+                          <Caption size="xs" style={{ color: colors.muted, fontSize: 10 }}>
+                            Pending: ₹{Math.abs(pending).toLocaleString('en-IN')}
+                          </Caption>
+                        </View>
+                      )}
                     </View>
                   );
                 })()}
-                {structured.financeItems.slice(0, 2).map((financeItem: any) => (
+
+                {structured.financeItems.slice(0, 3).map((financeItem: any) => (
                   <View style={styles.miniListItem} key={financeItem.id}>
                     <Caption
                       size="xs"
                       numberOfLines={1}
-                      style={{ color: colors.muted, flex: 1 }}
+                      style={{
+                        color: financeItem.checked ? colors.muted : colors.foreground,
+                        flex: 1,
+                        textDecorationLine: financeItem.checked ? 'line-through' : 'none',
+                      }}
                     >
                       {financeItem.text}
                     </Caption>
-                    <Caption
-                      size="xs"
-                      style={{
-                        color:
-                          financeItem.amount && financeItem.amount >= 0
-                            ? colors.foreground
-                            : colors.error,
-                        fontWeight: '500',
-                        marginLeft: 4,
-                      }}
-                    >
-                      {financeItem.amount && financeItem.amount >= 0 ? '+₹' : '-₹'}
-                      {financeItem.amount !== undefined ? Math.abs(financeItem.amount).toFixed(0) : ''}
-                    </Caption>
+                    {financeItem.amount !== undefined && (
+                      <Caption
+                        size="xs"
+                        style={{
+                          color: colors.foreground,
+                          fontWeight: '500',
+                          marginLeft: 6,
+                        }}
+                      >
+                        ₹{Math.abs(financeItem.amount).toLocaleString('en-IN')}
+                      </Caption>
+                    )}
                   </View>
                 ))}
-                {structured.financeItems.length > 2 && (
-                  <Caption size="xs" style={{ color: colors.muted, fontStyle: 'italic', marginTop: 2 }}>
-                    +{structured.financeItems.length - 2} more items
+
+                {structured.financeItems.length > 3 && (
+                  <Caption size="xs" style={{ color: colors.muted, fontStyle: 'italic', marginTop: 3 }}>
+                    +{structured.financeItems.length - 3} more items
                   </Caption>
                 )}
               </View>
@@ -860,7 +893,7 @@ export const HomeScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* ── Pinned Section ────────────────────────────────────────────────── */}
+{/* ── Pinned Section ────────────────────────────────────────────────── */}
         {pinnedNotes.length > 0 && (
           <View style={styles.pinnedSection}>
             <View style={styles.sectionHeader}>
@@ -1020,6 +1053,46 @@ const styles = StyleSheet.create({
   },
   micLabel: {
     marginTop: SPACING.xl,
+  },
+  aiSearchCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.xl,
+  },
+  aiSearchHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginBottom: SPACING.sm,
+  },
+  aiSearchInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 44,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: RADIUS.sm,
+    paddingLeft: SPACING.md,
+  },
+  aiSearchInput: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.sizes.sm,
+    paddingVertical: SPACING.sm,
+  },
+  aiAskButton: {
+    alignSelf: 'stretch',
+    minWidth: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.sm,
+    margin: 3,
+  },
+  aiResult: {
+    marginTop: SPACING.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: RADIUS.sm,
+    padding: SPACING.sm,
+    lineHeight: 19,
   },
   // ── Pinned & Recent Grid ────────────────────────────────────────────────
   pinnedSection: {
