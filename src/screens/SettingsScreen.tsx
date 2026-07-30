@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Switch, ScrollView, Alert, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import RNFS from 'react-native-fs';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { Heading, Body, Caption } from '../components/Typography';
 import { SPACING, COLORS, RADIUS } from '../theme/theme';
@@ -9,22 +10,76 @@ import { triggerHaptic } from '../utils/haptics';
 import { DatabaseService } from '../services/database/DatabaseService';
 import { useNotesStore } from '../features/notes/notesStore';
 import { clearSnapshot } from '../services/recovery/recordingSnapshot';
-import { ChevronRight, HelpCircle } from 'lucide-react-native';
+import { BarChart2 } from 'lucide-react-native';
 import { WhisperService } from '../services/whisper/WhisperService';
 import { RECOMMENDED_EMBEDDING_MODEL, RECOMMENDED_LLM_MODEL } from '../services/ai/OfflineAiModelService';
 
 export const SettingsScreen: React.FC = () => {
-  const navigation = useNavigation<any>();
   const {
     themeMode,
     toggleTheme,
-    embeddingModelUri,
-    llmModelUri,
     setEmbeddingModelUri,
     setLlmModelUri,
   } = useSettingsStore();
 
   const colors = COLORS[themeMode];
+
+  // Workspace Statistics
+  const { notesList, loadNotes } = useNotesStore();
+  const [localStorageSize, setLocalStorageSize] = React.useState('0 KB');
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadNotes();
+
+      const notesDir = `${RNFS.DocumentDirectoryPath}/files/notes`;
+      const audioDir = `${RNFS.DocumentDirectoryPath}/files/audio`;
+      let totalBytes = 0;
+
+      Promise.all([
+        RNFS.exists(notesDir).then((exists) => (exists ? RNFS.readDir(notesDir) : [])),
+        RNFS.exists(audioDir).then((exists) => (exists ? RNFS.readDir(audioDir) : [])),
+      ])
+        .then(([noteFiles, audioFiles]) => {
+          for (const file of noteFiles) {
+            if (file.isFile()) totalBytes += file.size;
+          }
+          for (const file of audioFiles) {
+            if (file.isFile()) totalBytes += file.size;
+          }
+
+          if (totalBytes >= 1024 * 1024) {
+            setLocalStorageSize(`${(totalBytes / (1024 * 1024)).toFixed(2)} MB`);
+          } else {
+            setLocalStorageSize(`${(totalBytes / 1024).toFixed(0)} KB`);
+          }
+        })
+        .catch((err) => {
+          console.warn('SettingsScreen: Error calculating folder size:', err);
+        });
+    }, [loadNotes])
+  );
+
+  const totalNotes = notesList.filter((n) => n.type === 'note').length;
+  const checklists = notesList.filter((n) => n.type === 'list' || n.type === 'finance').length;
+  const totalDuration = notesList.reduce((sum, note) => sum + (note.duration || 0), 0);
+
+  const formatDuration = (seconds: number) => {
+    if (seconds <= 0) return '0s';
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    if (hrs > 0) return `${hrs}h ${mins}m`;
+    if (mins > 0) return `${mins}m ${secs}s`;
+    return `${secs}s`;
+  };
+
+  const REAL_STATS = [
+    { label: 'Total Notes', value: String(totalNotes) },
+    { label: 'Checklists', value: String(checklists) },
+    { label: 'Voice Captured', value: formatDuration(totalDuration) },
+    { label: 'Local Storage', value: localStorageSize },
+  ];
 
   // Whisper Model Download State
   const [modelExists, setModelExists] = React.useState(false);
@@ -393,79 +448,34 @@ export const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Section: Security & Privacy */}
+        {/* Workspace Statistics */}
         <View style={styles.section}>
-          <Heading size="sm" style={styles.sectionTitle}>
-            Security & Privacy
-          </Heading>
-
-          <View style={[styles.settingRow, { borderBottomColor: colors.border, borderBottomWidth: 0 }]}>
-            <View style={styles.settingInfo}>
-              <Body size="md" style={styles.settingLabel}>
-                Granular Security
-              </Body>
-              <Caption size="sm" style={{ marginTop: 4, lineHeight: 18 }}>
-                Secure individual sensitive notes or lists by tapping the lock icon in the top header of any note.
-                Locked items require device biometrics (fingerprint/face recognition) or device passcode to unlock.
-              </Caption>
-            </View>
+          <View style={styles.sectionTitleRow}>
+            <BarChart2 size={18} color={colors.foreground} style={styles.icon} />
+            <Heading size="sm" style={styles.sectionTitle}>
+              Statistics
+            </Heading>
           </View>
-        </View>
-
-        {/* Section: Help & Guides */}
-        <View style={styles.section}>
-          <Heading size="sm" style={styles.sectionTitle}>
-            Help & Guides
-          </Heading>
-          <TouchableOpacity
-            style={[
-              styles.settingRow,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                borderWidth: StyleSheet.hairlineWidth,
-                borderRadius: 8,
-                padding: SPACING.md,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              },
-            ]}
-            onPress={() => {
-              triggerHaptic('selection');
-              navigation.navigate('Help');
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
-              <HelpCircle size={20} color={colors.foreground} />
-              <Body size="md" style={{ color: colors.foreground, fontWeight: '600' }}>
-                Voice Commands & User Guide
-              </Body>
-            </View>
-            <ChevronRight size={20} color={colors.muted} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Section: About Creator */}
-        <View style={styles.section}>
-          <Heading size="sm" style={styles.sectionTitle}>
-            About Creator
-          </Heading>
-          <View
-            style={[
-              styles.creatorCard,
-              {
-                borderColor: colors.border,
-                backgroundColor: colors.surface,
-              },
-            ]}
-          >
-            <Body size="md" style={{ fontWeight: '700', marginBottom: 4 }}>
-              Darshan
-            </Body>
-            <Caption size="sm" style={{ lineHeight: 18 }}>
-              Lead Architect & Designer. Focused on building high-performance, local-first, offline-first minimalist developer and productivity utilities that respect user security.
-            </Caption>
+          <View style={styles.statsGrid}>
+            {REAL_STATS.map((stat, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.statCard,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                  },
+                ]}
+              >
+                <Heading size="lg" style={styles.statValue}>
+                  {stat.value}
+                </Heading>
+                <Caption size="sm" style={styles.statLabel}>
+                  {stat.label}
+                </Caption>
+              </View>
+            ))}
           </View>
         </View>
 
@@ -488,15 +498,6 @@ export const SettingsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Section: Application Info */}
-        <View style={styles.infoSection}>
-          <Caption size="xs" style={[styles.centerText, { color: colors.muted }]}>
-            Ideatik v2.0.0 • privacy-first open-source
-          </Caption>
-          <Caption size="xs" style={[styles.centerText, { color: colors.muted }]}>
-            Made with ❤️ by Darshan
-          </Caption>
-        </View>
       </ScrollView>
     </ScreenWrapper>
   );
@@ -514,11 +515,37 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: SPACING.xxl,
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  icon: {
+    marginRight: SPACING.xs + 2,
+  },
   sectionTitle: {
     fontWeight: '700',
     marginBottom: SPACING.sm,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+  },
+  statCard: {
+    width: '48%',
+    padding: SPACING.md,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  statValue: {
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  statLabel: {
+    opacity: 0.8,
   },
   sectionDesc: {
     marginBottom: SPACING.md,
@@ -598,6 +625,17 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     borderRadius: SPACING.sm,
     borderWidth: 1,
+  },
+  portfolioBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.xs + 3,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignSelf: 'flex-start',
+    marginTop: SPACING.xs,
   },
   importModelButton: {
     marginTop: SPACING.md,

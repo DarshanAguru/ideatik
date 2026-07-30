@@ -1,154 +1,208 @@
-import React, { useState, useCallback } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import RNFS from 'react-native-fs';
+import React from 'react';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Linking, Animated, Alert } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { Heading, Body, Caption } from '../components/Typography';
-import { SPACING, COLORS } from '../theme/theme';
+import { SPACING, COLORS, RADIUS } from '../theme/theme';
 import { useSettingsStore } from '../features/settings/settingsStore';
-import { useNotesStore } from '../features/notes/notesStore';
-import { Shield, BarChart2 } from 'lucide-react-native';
+import { triggerHaptic } from '../utils/haptics';
+import { Shield, ChevronRight, HelpCircle, Globe, ExternalLink, Info } from 'lucide-react-native';
 
-export const ProfileScreen: React.FC = () => {
-  const themeMode = useSettingsStore((state) => state.themeMode);
-  const colors = COLORS[themeMode];
-  
-  const { notesList, loadNotes } = useNotesStore();
-  const [localStorageSize, setLocalStorageSize] = useState('0 KB');
+const PulsatingHeart: React.FC = () => {
+  const scale = React.useRef(new Animated.Value(1)).current;
 
-  useFocusEffect(
-    useCallback(() => {
-      // Reload notes list from database to ensure fresh metadata
-      loadNotes();
-
-      // Read audio and notes directory sizes asynchronously
-      const notesDir = `${RNFS.DocumentDirectoryPath}/files/notes`;
-      const audioDir = `${RNFS.DocumentDirectoryPath}/files/audio`;
-      let totalBytes = 0;
-
-      Promise.all([
-        RNFS.exists(notesDir).then((exists) => (exists ? RNFS.readDir(notesDir) : [])),
-        RNFS.exists(audioDir).then((exists) => (exists ? RNFS.readDir(audioDir) : [])),
+  React.useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 1.25,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 1.0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
       ])
-        .then(([noteFiles, audioFiles]) => {
-          for (const file of noteFiles) {
-            if (file.isFile()) totalBytes += file.size;
-          }
-          for (const file of audioFiles) {
-            if (file.isFile()) totalBytes += file.size;
-          }
-
-          if (totalBytes >= 1024 * 1024) {
-            setLocalStorageSize(`${(totalBytes / (1024 * 1024)).toFixed(2)} MB`);
-          } else {
-            setLocalStorageSize(`${(totalBytes / 1024).toFixed(0)} KB`);
-          }
-        })
-        .catch((err) => {
-          console.warn('ProfileScreen: Error calculating folder size:', err);
-        });
-    }, [loadNotes])
-  );
-
-  const totalNotes = notesList.filter((n) => n.type === 'note').length;
-  const checklists = notesList.filter((n) => n.type === 'list' || n.type === 'finance').length;
-  const totalDuration = notesList.reduce((sum, note) => sum + (note.duration || 0), 0);
-
-  const formatDuration = (seconds: number) => {
-    if (seconds <= 0) return '0s';
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-
-    if (hrs > 0) {
-      return `${hrs}h ${mins}m`;
-    }
-    if (mins > 0) {
-      return `${mins}m ${secs}s`;
-    }
-    return `${secs}s`;
-  };
-
-  const REAL_STATS = [
-    { label: 'Total Notes', value: String(totalNotes) },
-    { label: 'Checklists', value: String(checklists) },
-    { label: 'Voice Captured', value: formatDuration(totalDuration) },
-    { label: 'Local Storage', value: localStorageSize },
-  ];
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [scale]);
 
   return (
-    <ScreenWrapper style={styles.container} safeBottom={false}>
-      <View style={styles.header}>
-        <Heading size="xl">Local Workspace</Heading>
-        <Caption size="sm">Your ideas are secure and on-device only.</Caption>
-      </View>
+    <Animated.Text style={{ transform: [{ scale }], fontSize: 12, marginHorizontal: 3 }}>
+      ❤️
+    </Animated.Text>
+  );
+};
 
-      {/* Stats Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionTitleRow}>
-          <BarChart2 size={18} color={colors.foreground} style={styles.icon} />
-          <Heading size="sm" style={styles.sectionTitle}>
-            Statistics
-          </Heading>
+export const ProfileScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
+  const themeMode = useSettingsStore((state) => state.themeMode);
+  const colors = COLORS[themeMode];
+
+  return (
+    <ScreenWrapper safeBottom={false}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Heading size="xl">About Ideatik</Heading>
+          <Caption size="sm">Local-first, offline-first private productivity assistant.</Caption>
         </View>
-        <View style={styles.statsGrid}>
-          {REAL_STATS.map((stat, index) => (
-            <View
-              key={index}
+
+        {/* Section: About App */}
+        <View style={styles.section}>
+          <View style={styles.sectionTitleRow}>
+            <Info size={18} color={colors.foreground} style={styles.icon} />
+            <Heading size="sm" style={styles.sectionTitle}>
+              About App
+            </Heading>
+          </View>
+          <View
+            style={[
+              styles.infoCard,
+              {
+                borderColor: colors.border,
+                backgroundColor: colors.surface,
+              },
+            ]}
+          >
+            <Caption size="sm" style={{ lineHeight: 20, color: colors.foreground }}>
+              This app is designed with a local-first philosophy—combining offline AI, voice-first note-taking, and a minimalist experience to keep your ideas private, searchable, and always accessible.
+            </Caption>
+          </View>
+        </View>
+
+        {/* Section: Privacy & Architecture */}
+        <View style={styles.section}>
+          <View style={styles.sectionTitleRow}>
+            <Shield size={18} color={colors.foreground} style={styles.icon} />
+            <Heading size="sm" style={styles.sectionTitle}>
+              Privacy &amp; Architecture
+            </Heading>
+          </View>
+          <View
+            style={[
+              styles.infoCard,
+              {
+                borderColor: colors.border,
+                backgroundColor: colors.surface,
+              },
+            ]}
+          >
+            <Body size="sm" style={styles.infoText}>
+              🔒 <Body size="sm" style={{ fontWeight: '700' }}>100% Offline · No Cloud · No Accounts</Body>
+            </Body>
+            <Body size="sm" style={styles.infoText}>
+              All speech-to-text runs entirely on this device using a quantized Whisper model. Your audio and transcripts never leave your phone.
+            </Body>
+            <Body size="sm" style={styles.infoText}>
+              🤖 <Body size="sm" style={{ fontWeight: '600' }}>Local RAG & On-Device AI</Body> — Vector embedding indexing, semantic search, and offline LLM intelligence execute 100% on-device. Zero notes, vector indexes, or AI queries are ever sent to external cloud servers.
+            </Body>
+            <Body size="sm" style={styles.infoText}>
+              🧩 <Body size="sm" style={{ fontWeight: '600' }}>Local-First Storage</Body> — Notes are saved as standard Markdown (.md) files and audio as WAV on your internal storage. Back up by copying files directly from your device.
+            </Body>
+            <Body size="sm" style={styles.infoText}>
+              ⚡ <Body size="sm" style={{ fontWeight: '600' }}>WAV Chunking</Body> — Long recordings are split into 30-second segments processed sequentially to keep memory usage low on mobile.
+            </Body>
+            <Body size="sm" style={{ lineHeight: 20, color: colors.muted }}>
+              No analytics, no telemetry, no sync servers, no crash reporters. Zero third-party data sharing.
+            </Body>
+          </View>
+        </View>
+
+        {/* Section: Help & Guides */}
+        <View style={styles.section}>
+          <Heading size="sm" style={styles.sectionTitle}>
+            Help &amp; Guides
+          </Heading>
+          <TouchableOpacity
+            style={[
+              styles.settingRow,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderRadius: 8,
+                padding: SPACING.md,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              },
+            ]}
+            onPress={() => {
+              triggerHaptic('selection');
+              navigation.navigate('Help');
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
+              <HelpCircle size={20} color={colors.foreground} />
+              <Body size="md" style={{ color: colors.foreground, fontWeight: '600' }}>
+                Voice Commands & User Guide
+              </Body>
+            </View>
+            <ChevronRight size={20} color={colors.muted} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Section: About Creator */}
+        <View style={styles.section}>
+          <Heading size="sm" style={styles.sectionTitle}>
+            About Creator
+          </Heading>
+          <View
+            style={[
+              styles.creatorCard,
+              {
+                borderColor: colors.border,
+                backgroundColor: colors.surface,
+              },
+            ]}
+          >
+            <Body size="md" style={{ fontWeight: '700', marginBottom: 4 }}>
+              Aguru Darshan
+            </Body>
+            <Caption size="sm" style={{ lineHeight: 18, marginBottom: SPACING.md }}>
+              A software engineer passionate about developer tooling, distributed systems, and privacy-first applications, focused on creating fast, practical software that solves real problems.
+            </Caption>
+
+            <TouchableOpacity
               style={[
-                styles.statCard,
+                styles.portfolioBtn,
                 {
+                  backgroundColor: colors.foreground,
                   borderColor: colors.border,
-                  backgroundColor: colors.surface,
                 },
               ]}
+              onPress={() => {
+                triggerHaptic('impact');
+                Linking.openURL('https://thisdarshiii.in').catch(() => {
+                  Alert.alert('Unable to open URL', 'https://thisdarshiii.in');
+                });
+              }}
+              activeOpacity={0.8}
             >
-              <Heading size="lg" style={styles.statValue}>
-                {stat.value}
-              </Heading>
-              <Caption size="sm" style={styles.statLabel}>
-                {stat.label}
-              </Caption>
-            </View>
-          ))}
+              <Globe size={14} color={colors.background} style={{ marginRight: 6 }} />
+              <Body size="sm" style={{ color: colors.background, fontWeight: '600' }}>
+                Visit Portfolio
+              </Body>
+              <ExternalLink size={13} color={colors.background} style={{ marginLeft: 6, opacity: 0.85 }} />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
-      {/* Privacy & Architecture */}
-      <View style={styles.section}>
-        <View style={styles.sectionTitleRow}>
-          <Shield size={18} color={colors.foreground} style={styles.icon} />
-          <Heading size="sm" style={styles.sectionTitle}>
-            Privacy &amp; Architecture
-          </Heading>
+        {/* Section: Application Info */}
+        <View style={styles.infoSection}>
+          <Caption size="xs" style={[styles.centerText, { color: colors.muted }]}>
+            Ideatik v2.0.0 • privacy-first open-source
+          </Caption>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
+            <Caption size="xs" style={{ color: colors.muted }}>Made with</Caption>
+            <PulsatingHeart />
+            <Caption size="xs" style={{ color: colors.muted }}>by Darshan</Caption>
+          </View>
         </View>
-        <View
-          style={[
-            styles.infoCard,
-            {
-              borderColor: colors.border,
-              backgroundColor: colors.surface,
-            },
-          ]}
-        >
-          <Body size="sm" style={styles.infoText}>
-            🔒 <Body size="sm" style={{ fontWeight: '700' }}>100% Offline · No Cloud · No Accounts</Body>
-          </Body>
-          <Body size="sm" style={styles.infoText}>
-            All speech-to-text runs entirely on this device using a quantized Whisper model (ggml-small.en-q5_1). Your audio and transcripts never leave your phone — not even during model download (model only).
-          </Body>
-          <Body size="sm" style={styles.infoText}>
-            🧩 <Body size="sm" style={{ fontWeight: '600' }}>Local-First Storage</Body> — Notes are saved as standard Markdown (.md) files and audio as WAV on your internal storage. Back up by copying files directly from your device.
-          </Body>
-          <Body size="sm" style={styles.infoText}>
-            ⚡ <Body size="sm" style={{ fontWeight: '600' }}>WAV Chunking</Body> — Long recordings are split into 30-second segments processed sequentially to keep memory usage low on mobile.
-          </Body>
-          <Body size="sm" style={{ lineHeight: 20, color: colors.muted }}>
-            No analytics, no telemetry, no sync servers, no crash reporters. Zero third-party data sharing.
-          </Body>
-        </View>
-      </View>
-
+      </ScrollView>
     </ScreenWrapper>
   );
 };
@@ -157,12 +211,13 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: SPACING.xl,
     paddingTop: SPACING.xl,
+    paddingBottom: SPACING.xxxl,
   },
   header: {
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
   },
   section: {
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.xxl,
   },
   sectionTitleRow: {
     flexDirection: 'row',
@@ -170,56 +225,52 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   icon: {
-    marginRight: SPACING.sm,
+    marginRight: SPACING.xs + 2,
   },
   sectionTitle: {
     fontWeight: '700',
+    marginBottom: SPACING.xs,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginHorizontal: -4,
-  },
-  statCard: {
-    width: '48%',
-    padding: SPACING.md,
-    borderRadius: SPACING.sm,
-    borderWidth: 1,
-    marginVertical: 4,
-    marginHorizontal: 2,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  statLabel: {
-    textAlign: 'center',
-  },
   infoCard: {
+    padding: SPACING.lg,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  infoText: {
+    marginBottom: SPACING.md,
+    lineHeight: 20,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  creatorCard: {
     padding: SPACING.lg,
     borderRadius: SPACING.sm,
     borderWidth: 1,
   },
-  infoText: {
-    marginBottom: SPACING.sm,
-    lineHeight: 20,
-  },
-  pathList: {
-    paddingLeft: SPACING.xs,
-  },
-  pathRow: {
+  portfolioBtn: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: SPACING.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.xs + 3,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignSelf: 'flex-start',
+    marginTop: SPACING.xs,
   },
-  pathLabel: {
-    fontWeight: '500',
+  infoSection: {
+    marginTop: SPACING.md,
+    alignItems: 'center',
   },
-  pathValue: {
-    fontFamily: 'monospace',
+  centerText: {
+    textAlign: 'center',
+    marginBottom: 4,
   },
 });

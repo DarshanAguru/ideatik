@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { createMMKV } from 'react-native-mmkv';
 import {
   View,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
   Animated,
   Easing,
   Keyboard,
+  Alert,
 } from 'react-native';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { Heading, Body, Caption, Label } from '../components/Typography';
@@ -24,12 +26,41 @@ import {
   Download,
   MessageCircleMore,
   ChevronRight,
+  Trash2,
 } from 'lucide-react-native';
 import { RagResult } from '../services/ai/SmartRagService';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './AppNavigator';
+
+const chatStorage = createMMKV();
+const CHAT_HISTORY_KEY = 'ideatik_chat_history_v1';
+
+function loadChatHistory(): ChatMessage[] {
+  try {
+    const json = chatStorage.getString(CHAT_HISTORY_KEY);
+    return json ? JSON.parse(json) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveChatHistory(messages: ChatMessage[]) {
+  try {
+    // Keep last 50 messages for high performance & light memory footprint
+    const recent = messages.slice(-50);
+    chatStorage.set(CHAT_HISTORY_KEY, JSON.stringify(recent));
+  } catch (err) {
+    console.warn('Failed to save chat history:', err);
+  }
+}
+
+function clearChatHistory() {
+  try {
+    chatStorage.remove(CHAT_HISTORY_KEY);
+  } catch {}
+}
 
 // ─── Message Type ─────────────────────────────────────────────────────────────
 
@@ -217,7 +248,7 @@ export const ChatScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadChatHistory());
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [hasModels, setHasModels] = useState<boolean | null>(null);
@@ -225,6 +256,11 @@ export const ChatScreen: React.FC = () => {
   const listRef = useRef<FlatList<ChatMessage>>(null);
 
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  // Automatically save chat history whenever messages change
+  useEffect(() => {
+    saveChatHistory(messages);
+  }, [messages]);
 
   // Keyboard scroll & visibility handling
   useEffect(() => {
@@ -337,7 +373,29 @@ export const ChatScreen: React.FC = () => {
             Chat with Notes
           </Heading>
         </View>
-        <Sparkles size={16} color={colors.muted} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.md }}>
+          {messages.length > 0 && (
+            <TouchableOpacity
+              onPress={() => {
+                Alert.alert('Clear Chat History', 'Are you sure you want to clear your chat history?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Clear History',
+                    style: 'destructive',
+                    onPress: () => {
+                      setMessages([]);
+                      clearChatHistory();
+                    },
+                  },
+                ]);
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Trash2 size={16} color={colors.muted} />
+            </TouchableOpacity>
+          )}
+          <Sparkles size={16} color={colors.muted} />
+        </View>
       </View>
 
       {/* ── Body ──────────────────────────────────────────────────────────── */}

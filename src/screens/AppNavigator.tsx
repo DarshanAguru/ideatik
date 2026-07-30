@@ -14,7 +14,7 @@ import { HelpScreen } from './HelpScreen';
 import { COLORS, TYPOGRAPHY } from '../theme/theme';
 import { useSettingsStore } from '../features/settings/settingsStore';
 import { useSecurityStore } from '../features/security/securityStore';
-import { Home, FileText, BrainCircuit, Settings, User } from 'lucide-react-native';
+import { Home, FileText, BrainCircuit, Settings, Info } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackgroundTaskManager } from '../services/background/BackgroundTaskManager';
 import { WhisperService } from '../services/whisper/WhisperService';
@@ -27,7 +27,7 @@ const HomeIcon = ({ color }: { color: string }) => <Home size={20} color={color}
 const NotesIcon = ({ color }: { color: string }) => <FileText size={20} color={color} />;
 const ChatIcon = ({ color }: { color: string }) => <BrainCircuit size={20} color={color} />;
 const SettingsIcon = ({ color }: { color: string }) => <Settings size={20} color={color} />;
-const ProfileIcon = ({ color }: { color: string }) => <User size={20} color={color} />;
+const AboutIcon = ({ color }: { color: string }) => <Info size={20} color={color} />;
 
 // Type Definitions for Navigation Parameters
 export type RootStackParamList = {
@@ -63,10 +63,9 @@ const TabNavigator = () => {
           shadowOpacity: 0,
         },
         tabBarLabelStyle: {
-          fontSize: TYPOGRAPHY.sizes.xs,
-          fontWeight: TYPOGRAPHY.weights.semibold,
-          letterSpacing: TYPOGRAPHY.tracking.caps,
-          textTransform: 'uppercase',
+          fontSize: 11,
+          fontFamily: TYPOGRAPHY.fonts.regular,
+          fontWeight: TYPOGRAPHY.weights.medium,
           marginTop: 2,
         },
       }}
@@ -94,7 +93,7 @@ const TabNavigator = () => {
       <Tab.Screen
         name="ProfileTab"
         component={ProfileScreen}
-        options={{ tabBarLabel: 'Profile', tabBarIcon: ProfileIcon }}
+        options={{ tabBarLabel: 'About', tabBarIcon: AboutIcon }}
       />
     </Tab.Navigator>
   );

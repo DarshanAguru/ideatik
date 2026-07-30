@@ -90,25 +90,6 @@ function extractTopicKeywords(query: string): string[] {
 
 const CITATION_INSTRUCTION = `\n5. CRITICAL CITATION RULE:\nAt the very end of your response, add exactly one line starting with "CITATION: " followed by the exact literal note line(s) or items from context that you used to form your conclusion (e.g. "CITATION: • Hotel Resort: Rs. 4000").`;
 
-const SYSTEM_PROMPT_FINANCE = `You are Ideatik AI, a precise, deterministic financial intelligence assistant for personal notebooks.
-STRICT RESPONSE FORMAT:
-Always format your output using this exact structure:
-
-## Financial Summary: [Title]
-- **Grand Total Expense**: Rs. [Amount]
-- **Budget Status**: [Budget info or Not specified]
-
-### Category Breakdown
-• **[CATEGORY]**: Rs. [Amount] ([Share]%)
-
-### Itemized Expenses
-• **[Item Text]**: Rs. [Amount]
-
-STRICT RULES:
-1. ACCURACY & MATH RULE: All expenses are in Indian Rupees (Rs. or ₹). DO NOT recalculate or guess math numbers yourself. Use ONLY the exact pre-computed math facts provided in the context.
-2. CURRENCY SYMBOL RULE: Use ONLY "Rs." or "₹" for currency. NEVER use "$", "USD", "€", "£", or any other currency symbol.
-3. Keep the format consistent, clean, exact, and predictable without changing response layout between queries.` + CITATION_INSTRUCTION;
-
 const SYSTEM_PROMPT_PENDING = `You are Ideatik AI, a precise checklist & task assistant for personal notebooks.
 STRICT RESPONSE FORMAT:
 Always format your output using clean section headings and bullet lists:
