@@ -10,7 +10,7 @@ import { triggerHaptic } from '../utils/haptics';
 import { DatabaseService } from '../services/database/DatabaseService';
 import { useNotesStore } from '../features/notes/notesStore';
 import { clearSnapshot } from '../services/recovery/recordingSnapshot';
-import { BarChart2 } from 'lucide-react-native';
+import { BarChart2, Trash2 } from 'lucide-react-native';
 import { WhisperService } from '../services/whisper/WhisperService';
 import { RECOMMENDED_EMBEDDING_MODEL, RECOMMENDED_LLM_MODEL } from '../services/ai/OfflineAiModelService';
 
@@ -26,61 +26,8 @@ export const SettingsScreen: React.FC = () => {
 
   // Workspace Statistics
   const { notesList, loadNotes } = useNotesStore();
-  const [localStorageSize, setLocalStorageSize] = React.useState('0 KB');
-
-  useFocusEffect(
-    React.useCallback(() => {
-      loadNotes();
-
-      const notesDir = `${RNFS.DocumentDirectoryPath}/files/notes`;
-      const audioDir = `${RNFS.DocumentDirectoryPath}/files/audio`;
-      let totalBytes = 0;
-
-      Promise.all([
-        RNFS.exists(notesDir).then((exists) => (exists ? RNFS.readDir(notesDir) : [])),
-        RNFS.exists(audioDir).then((exists) => (exists ? RNFS.readDir(audioDir) : [])),
-      ])
-        .then(([noteFiles, audioFiles]) => {
-          for (const file of noteFiles) {
-            if (file.isFile()) totalBytes += file.size;
-          }
-          for (const file of audioFiles) {
-            if (file.isFile()) totalBytes += file.size;
-          }
-
-          if (totalBytes >= 1024 * 1024) {
-            setLocalStorageSize(`${(totalBytes / (1024 * 1024)).toFixed(2)} MB`);
-          } else {
-            setLocalStorageSize(`${(totalBytes / 1024).toFixed(0)} KB`);
-          }
-        })
-        .catch((err) => {
-          console.warn('SettingsScreen: Error calculating folder size:', err);
-        });
-    }, [loadNotes])
-  );
-
-  const totalNotes = notesList.filter((n) => n.type === 'note').length;
-  const checklists = notesList.filter((n) => n.type === 'list' || n.type === 'finance').length;
-  const totalDuration = notesList.reduce((sum, note) => sum + (note.duration || 0), 0);
-
-  const formatDuration = (seconds: number) => {
-    if (seconds <= 0) return '0s';
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    if (hrs > 0) return `${hrs}h ${mins}m`;
-    if (mins > 0) return `${mins}m ${secs}s`;
-    return `${secs}s`;
-  };
-
-  const REAL_STATS = [
-    { label: 'Total Notes', value: String(totalNotes) },
-    { label: 'Checklists', value: String(checklists) },
-    { label: 'Voice Captured', value: formatDuration(totalDuration) },
-    { label: 'Local Storage', value: localStorageSize },
-  ];
-
+  const [vectorStoreSize, setVectorStoreSize] = React.useState('0 KB');
+  const [totalStorageSize, setTotalStorageSize] = React.useState('0 KB');
   // Whisper Model Download State
   const [modelExists, setModelExists] = React.useState(false);
   const [isDownloading, setIsDownloading] = React.useState(false);
@@ -102,6 +49,98 @@ export const SettingsScreen: React.FC = () => {
     setEmbeddingModelExists(embExists);
     setLlmModelExists(llmExists);
   }, []);
+
+  const refreshWorkspaceStats = React.useCallback(async () => {
+    await loadNotes();
+
+    const notesDir = `${RNFS.DocumentDirectoryPath}/files/notes`;
+    const audioDir = `${RNFS.DocumentDirectoryPath}/files/audio`;
+    let noteAndAudioBytes = 0;
+
+    try {
+      const [noteFiles, audioFiles, vectorRes] = await Promise.all([
+        RNFS.exists(notesDir).then((exists) => (exists ? RNFS.readDir(notesDir) : [])),
+        RNFS.exists(audioDir).then((exists) => (exists ? RNFS.readDir(audioDir) : [])),
+        DatabaseService.execute(`SELECT SUM(LENGTH(vectorJson)) as vectorBytes FROM note_vectors;`).catch(() => []),
+      ]);
+
+      for (const file of noteFiles) {
+        if (file.isFile()) noteAndAudioBytes += file.size;
+      }
+      for (const file of audioFiles) {
+        if (file.isFile()) noteAndAudioBytes += file.size;
+      }
+
+      let vectorBytes = 0;
+      if (vectorRes && vectorRes.length > 0 && vectorRes[0]?.vectorBytes) {
+        vectorBytes = Number(vectorRes[0].vectorBytes) || 0;
+      }
+
+      const totalBytes = noteAndAudioBytes + vectorBytes;
+
+      const formatBytes = (bytes: number) => {
+        if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+        if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+        if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${bytes} B`;
+      };
+
+      setVectorStoreSize(formatBytes(vectorBytes));
+      setTotalStorageSize(formatBytes(totalBytes));
+    } catch (err) {
+      console.warn('SettingsScreen: Error calculating storage stats:', err);
+      setVectorStoreSize('0 B');
+      setTotalStorageSize('0 B');
+    }
+  }, [loadNotes]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      WhisperService.checkModelExists().then(setModelExists);
+      checkAiModels();
+      refreshWorkspaceStats();
+    }, [checkAiModels, refreshWorkspaceStats])
+  );
+
+  const totalNotes = notesList.filter((n) => n.type === 'note').length;
+  const checklists = notesList.filter((n) => n.type === 'list').length;
+  const financeLists = notesList.filter((n) => n.type === 'finance').length;
+  const totalDuration = notesList.reduce((sum, note) => sum + (note.duration || 0), 0);
+
+  const formatCount = (num: number) => {
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+    return String(num);
+  };
+
+  const formatDuration = (seconds: number) => {
+    if (seconds <= 0) return '0s';
+    if (seconds >= 86400) {
+      const days = Math.floor(seconds / 86400);
+      const hrs = Math.floor((seconds % 86400) / 3600);
+      return `${days}d ${hrs}h`;
+    }
+    if (seconds >= 3600) {
+      const hrs = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      return `${hrs}h ${mins}m`;
+    }
+    if (seconds >= 60) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}m ${secs}s`;
+    }
+    return `${seconds}s`;
+  };
+
+  const REAL_STATS = [
+    { label: 'Text Notes', value: formatCount(totalNotes) },
+    { label: 'Checklists', value: formatCount(checklists) },
+    { label: 'Finance Ledgers', value: formatCount(financeLists) },
+    { label: 'Vector Store', value: vectorStoreSize },
+    { label: 'Total Storage', value: totalStorageSize },
+    { label: 'Voice Audio', value: formatDuration(totalDuration) },
+  ];
 
   React.useEffect(() => {
     WhisperService.checkModelExists().then(setModelExists);
@@ -217,6 +256,7 @@ export const SettingsScreen: React.FC = () => {
                       const { LocalVectorIndex } = require('../services/ai/LocalVectorIndex');
                       await LocalVectorIndex.clearAll();
                       await useNotesStore.getState().loadNotes();
+                      await refreshWorkspaceStats();
                       checkAiModels();
                       Alert.alert('Data Wiped', 'All local notes, audio recordings, and vector embeddings have been cleared. Your downloaded AI models remain intact.');
                     } catch {
@@ -237,6 +277,37 @@ export const SettingsScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Heading size="xl">Settings</Heading>
+        </View>
+
+        {/* Workspace Statistics */}
+        <View style={styles.section}>
+          <View style={styles.sectionTitleRow}>
+            <BarChart2 size={18} color={colors.foreground} style={styles.icon} />
+            <Heading size="sm" style={styles.sectionTitle}>
+              Statistics
+            </Heading>
+          </View>
+          <View style={styles.statsGrid}>
+            {REAL_STATS.map((stat, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.statCard,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                  },
+                ]}
+              >
+                <Heading size="lg" style={styles.statValue}>
+                  {stat.value}
+                </Heading>
+                <Caption size="sm" style={styles.statLabel}>
+                  {stat.label}
+                </Caption>
+              </View>
+            ))}
+          </View>
         </View>
 
         {/* Section: General */}
@@ -401,6 +472,9 @@ export const SettingsScreen: React.FC = () => {
                     ? `✓ Installed · ${RECOMMENDED_LLM_MODEL.name} · ~${RECOMMENDED_LLM_MODEL.sizeMB} MB`
                     : `${RECOMMENDED_LLM_MODEL.name} · ~${RECOMMENDED_LLM_MODEL.sizeMB} MB`}
                 </Caption>
+                  <Caption size="xs" style={{ color: colors.muted, marginTop: 1, fontStyle: 'italic' }}>
+                    Used for smartly answering the query
+                </Caption>
               </View>
 
               <View style={[styles.modelRowRight, { gap: SPACING.xs }]}>
@@ -448,37 +522,6 @@ export const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Workspace Statistics */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <BarChart2 size={18} color={colors.foreground} style={styles.icon} />
-            <Heading size="sm" style={styles.sectionTitle}>
-              Statistics
-            </Heading>
-          </View>
-          <View style={styles.statsGrid}>
-            {REAL_STATS.map((stat, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.statCard,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                  },
-                ]}
-              >
-                <Heading size="lg" style={styles.statValue}>
-                  {stat.value}
-                </Heading>
-                <Caption size="sm" style={styles.statLabel}>
-                  {stat.label}
-                </Caption>
-              </View>
-            ))}
-          </View>
-        </View>
-
         {/* Section: Danger Zone */}
         <View style={styles.section}>
           <Heading size="sm" style={[styles.sectionTitle, { color: colors.error }]}>
@@ -489,11 +532,14 @@ export const SettingsScreen: React.FC = () => {
             onPress={handleClearDataPress}
             activeOpacity={0.7}
           >
-            <View style={styles.settingInfo}>
-              <Body size="md" style={[styles.settingLabel, { color: colors.error }]}>
-                Clear Local Data
-              </Body>
-              <Caption size="sm">Permanently wipe all notes, transcripts, and audio recordings</Caption>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, flex: 1 }}>
+              <Trash2 size={20} color={colors.error} />
+              <View style={styles.settingInfo}>
+                <Body size="md" style={[styles.settingLabel, { color: colors.error }]}>
+                  Clear Local Data
+                </Body>
+                <Caption size="sm">Permanently wipe all notes, transcripts, and audio recordings</Caption>
+              </View>
             </View>
           </TouchableOpacity>
         </View>

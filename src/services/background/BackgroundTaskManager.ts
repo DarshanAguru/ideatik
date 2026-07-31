@@ -7,6 +7,7 @@ import { TranscriptionQueue, QueuedTranscription } from '../queue/TranscriptionQ
 import { WhisperService } from '../whisper/WhisperService';
 import { NoteRepository } from '../database/NoteRepository';
 import { CommandParser } from '../parsers/CommandParser';
+import { HybridVoiceParser } from '../parsers/HybridVoiceParser';
 import { StructuredNote } from '../parsers/types';
 import { StructuredNoteService } from '../notes/StructuredNoteService';
 import { useNotesStore } from '../../features/notes/notesStore';
@@ -99,11 +100,10 @@ class BackgroundTaskManagerClass {
    */
   stopProcessing(): void {
     this.isProcessing = false;
-    console.log('Background transcription processing stopped');
   }
 
   /**
-   * Apply a transcription result to a note in the database
+   * Apply completed transcription text & format note
    */
   private async applyTranscriptionToNote(
     noteId: string,
@@ -123,8 +123,8 @@ class BackgroundTaskManagerClass {
       checked: i.checked,
     }));
 
-    // Pass the existing note type so it parses checklist/finance without "add" prefixes
-    const parsed = CommandParser.parse(rawText, parserItems, note.type);
+    // Pass the existing note type so it parses checklist/finance with Hybrid Voice Parser
+    const parsed = await HybridVoiceParser.parse(rawText, parserItems, note.type);
 
     const mergedRefTitles = [...(note.references || [])];
     parsed.references.forEach((ref) => {
@@ -190,13 +190,6 @@ class BackgroundTaskManagerClass {
       transcriptionError: undefined,
     });
 
-    try {
-      const { LocalVectorIndex } = require('../ai/LocalVectorIndex');
-      LocalVectorIndex.schedule(noteId);
-    } catch (e) {
-      console.warn('BackgroundTaskManager: Failed to schedule vector embedding', e);
-    }
-
     await useNotesStore.getState().loadNotes();
 
     const displayTitle = finalTitle && finalTitle !== 'Untitled Capture' ? finalTitle : 'Voice Note';
@@ -212,10 +205,29 @@ class BackgroundTaskManagerClass {
    */
   private async processQueueItem(item: QueuedTranscription): Promise<void> {
     try {
+      const modelExists = await WhisperService.checkModelExists();
+      if (!modelExists) {
+        // If Whisper model is not downloaded, save cleanly as audio-only voice note!
+        console.log(`BackgroundTaskManager: Speech model not downloaded. Saving ${item.noteId} as audio-only voice note.`);
+        await NoteRepository.save({
+          id: item.noteId,
+          title: item.noteTitle || 'Voice Recording',
+          type: item.noteType || 'note',
+          audioUri: item.audioUri,
+          duration: item.duration,
+          transcriptionStatus: 'completed_offline',
+          transcriptionError: undefined,
+        });
+        await TranscriptionQueue.updateStatus(item.id, 'completed');
+        await useNotesStore.getState().loadNotes();
+        return;
+      }
+
+      // Step 1: Transcribing Audio
       await TranscriptionQueue.updateStatus(item.id, 'processing');
       await NoteRepository.save({
         id: item.noteId,
-        transcriptionStatus: 'processing_offline' as any,
+        transcriptionStatus: 'processing_transcribing' as any,
         transcriptionError: undefined,
       });
 
@@ -225,32 +237,34 @@ class BackgroundTaskManagerClass {
         throw new Error('Transcription returned empty result');
       }
 
+      // Step 2: Indexing Vector Embeddings (runs only if embedding model exists)
+      try {
+        const { OfflineAiModelService } = require('../ai/OfflineAiModelService');
+        const hasEmbedding = await OfflineAiModelService.checkModelExists('embedding');
+        if (hasEmbedding) {
+          await NoteRepository.save({
+            id: item.noteId,
+            transcriptionStatus: 'processing_indexing' as any,
+          });
+          const { LocalVectorIndex } = require('../ai/LocalVectorIndex');
+          await LocalVectorIndex.indexNote(item.noteId);
+        }
+      } catch (e) {
+        console.warn('BackgroundTaskManager: Failed to index vector embedding:', e);
+      }
+
+      // Step 3: Processing Structure (Hybrid Semantic Parsing)
+      await NoteRepository.save({
+        id: item.noteId,
+        transcriptionStatus: 'processing_structuring' as any,
+      });
+
       await this.applyTranscriptionToNote(item.noteId, result.text, item.duration);
       await TranscriptionQueue.updateStatus(item.id, 'completed');
       console.log(`Successfully transcribed: ${item.noteId}`);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`BackgroundTaskManager: Transcription failed for note ${item.noteId}:`, error);
-
-      // Audio-only fallback: preserve audio if transcription fails
-      try {
-        const existingNote = await NoteRepository.findById(item.noteId);
-        if (existingNote && existingNote.audioUri) {
-          await NoteRepository.save({
-            id: item.noteId,
-            transcriptionStatus: 'completed_offline',
-            transcriptionError: undefined,
-            transcript: existingNote.transcript || '',
-          });
-          await TranscriptionQueue.updateStatus(item.id, 'completed');
-          await useNotesStore.getState().loadNotes();
-          console.log(`BackgroundTaskManager: Saved ${item.noteId} as audio-only note.`);
-          return;
-        }
-      } catch (saveErr) {
-        console.error('BackgroundTaskManager: Failed to save audio-only fallback:', saveErr);
-      }
-
+    } catch (err: any) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      console.warn(`BackgroundTaskManager: Error processing item ${item.id}:`, err);
       await TranscriptionQueue.updateStatus(item.id, 'failed', errorMsg);
       await NoteRepository.save({
         id: item.noteId,

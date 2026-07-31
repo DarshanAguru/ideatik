@@ -1,65 +1,68 @@
-# Ideatik (v2.0.0)
+<div align="center">
 
-**Ideatik** is a **100% offline, privacy-first voice capture & local AI intelligence notebook** built with React Native. It converts natural voice input into structured notes, interactive checklists, and detailed financial ledgers — operating entirely on your device with complete data privacy.
+<img src="./app_icon.png" alt="Ideatik Logo" width="90" style="border-radius: 18px;" />
 
----
+# Ideatik
 
-## What's New in v2.0.0
+**A privacy-first, fully offline voice notebook for Android**  
+Captures your thoughts, converts them into structured notes, and lets you query them with local AI — all without a server.
 
-- **Google Keep-Style Dynamic Masonry Grid** — 2-column dynamic tile layout with content-driven height, full item previews (unchecked first, checked below), and persistent long-press drag-and-drop reordering.
-- **Compact List View** — Single-row list format with checklist item counts, paid vs pending finance breakdowns (`Done: ₹3,000 • Pending: ₹1,500 • Total: ₹4,500`), and generous touch-friendly spacing.
-- **Silent AI Ready Indicator** — Notes complete vector indexing silently in the background without intrusive notification popups, displaying an AI ✨ badge directly on cards when query-ready.
-- **Official Qwen 2.5 1.5B AI Engine** — Upgraded on-device RAG engine featuring official Qwen 2.5 1.5B Instruct (890 MB) + BGE Small v1.5 for high-precision math calculations, percentage breakdowns, concept Q&A, and bullet-point summarization.
-- **Refined Chat with Notes & Guardrails** — Dedicated "Ask" tab with warm, natural intent for notebook calculations, word definitions, and summaries, with strict domain guardrails against general AI misuse.
-- **Keyboard-Aware Layouts** — KeyboardAvoidingView with safe-area insets across Android and iOS so search bars and text inputs never hide behind the keyboard.
+[![React Native](https://img.shields.io/badge/React%20Native-0.86-blue?logo=react)](https://reactnative.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue?logo=typescript)](https://www.typescriptlang.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](./CONTRIBUTING.md)
 
----
-
-## Key Features
-
-- **100% Offline Transcription**
-  - Speech-to-text runs on-device via `whisper.rn` — no audio or text ever leaves your device.
-  - Sequentially transcribes long recordings in 30-second chunks with automated queue recovery.
-
-- **Offline Knowledge Engine & RAG (Ask Tab)**
-  - Natural Q&A, finance breakdowns, percentage calculations, and bullet-point summaries.
-  - Hybrid search combining 384-dim BGE vector embeddings (0.65 weight) + exact keyword overlap (0.35 weight).
-  - Financial calculations are computed deterministically from parsed note JSON for 100% math accuracy.
-
-- **Voice Command NLP**
-  - `add <text>` — clean checklist item creation.
-  - `add <desc> cost <amount>` — finance item creation with automatic spoken numeric parsing ("twelve thousand fifty rupees" → `12050`).
-
-- **Flexible Note Types & Dynamic Views**
-  - **Notes** — Rich Markdown with backlink reference support.
-  - **Checklists** — Reorderable todo items with collapsible completed sections.
-  - **Finance Ledgers** — Line-item costs, auto-totals, paid vs pending status, and budget tracking.
-
-- **Security & Privacy** — Lock sensitive notes with device biometrics (fingerprint / Face ID) or device passcode.
-- **Export & Import** — Export to Markdown (`.txt`), PDF, or raw audio (`.wav`). Import `.txt` Markdown notes.
-- **Granular Search & Tagging** — Full-text search across titles, transcripts, and checklist items with tag filtering.
+</div>
 
 ---
 
-## Voice Commands Reference
+## What Is This?
 
-| Command | Syntax | Example |
-|---------|--------|---------|
-| Create Note | `create note` | `create note` |
-| Create Checklist | `create list` / `start checklist` | `create list` |
-| Create Finance Ledger | `create finance list` / `make ledger` | `create finance list` |
-| Add Checklist Item | `add <text>` | `add get groceries` |
-| Add Multiple Items | `add <text> add <text>` | `add milk add eggs add bread` |
-| Add Finance Item | `add <desc> cost <amount>` | `add lunch cost two hundred rupees` |
-| Link Reference | `add reference here` | `add reference here` |
+Ideatik is a React Native Android app that turns your voice into structured, searchable notes — without ever sending data to a cloud. It's built around three ideas:
+
+1. **Voice first** — speak naturally to create notes, checklists, and finance logs
+2. **Offline always** — transcription, AI search, and note storage run entirely on-device
+3. **Structured output** — raw speech is parsed into typed content (notes / lists / ledgers) using a hybrid rule-based + LLM pipeline
+
+> **Note:** This project was vibe-coded — built iteratively with speed in mind. The code is functional and tested, but there's room to clean up, refactor, and improve in several areas. Contributions that improve maintainability are very welcome.
 
 ---
 
-## Recommended Offline AI Models
+## Features
 
-- **LLM**: Qwen 2.5 1.5B Instruct GGUF (`qwen2.5-1.5b-instruct-q3_k_m.gguf` ~890 MB)
-- **Embeddings**: BGE Small EN v1.5 GGUF (`bge-small-en-v1.5-q4_k_m.gguf` ~25 MB)
-- **Transcription**: Whisper Base EN GGML (`ggml-base.en-q5_1.bin` ~148 MB)
+### Voice Capture
+- Record voice in chunks, with pause / resume support
+- On-device transcription via `whisper.rn` (Whisper base.en-q5_1, ~60 MB)
+- Background transcription queue with crash recovery
+
+### Structured Note Types
+| Type | Description |
+|------|-------------|
+| **Note** | Markdown text with backlink references |
+| **Checklist** | Reorderable to-do items with collapsible completed section |
+| **Finance Ledger** | Line-item costs with auto-totals, paid/pending status, budget tracking |
+
+### Voice Commands
+| Command | Example |
+|---------|---------|
+| Add checklist item | `add buy groceries` |
+| Add multiple items | `add milk add eggs add bread` |
+| Add finance item | `add lunch cost two hundred rupees` |
+| Link reference | `add reference here` |
+
+### Offline AI (Optional)
+- Semantic search across notes using BGE base-en-v1.5 embeddings (~110 MB)
+- Natural Q&A and summaries via Qwen 2.5 1.5B (~986 MB)
+- Hybrid search: 65% vector similarity + 35% keyword overlap
+- Models are user-supplied — download from HuggingFace or import your own GGUF
+
+### Other
+- Biometric lock per note (fingerprint / device passcode)
+- Export to Markdown, PDF, or raw WAV audio
+- Import `.md` / `.txt` Markdown notes
+- Full-text search with tag filters
+- Dark / light theme
+- Masonry grid layout with drag-and-drop reordering
 
 ---
 
@@ -67,21 +70,121 @@
 
 ```
 src/
-├── components/          # Shared UI (RagResponseView, FilterBar, Typography, ScreenWrapper…)
-├── features/            # Zustand stores (notes, recording, settings, tags, security)
-├── screens/             # App Screens (Home, Notes, Chat, NoteDetail, Settings, Help…)
+├── components/       # Shared UI primitives (Typography, ScreenWrapper, etc.)
+├── features/         # Zustand state stores
+│   ├── notes/        # Note list state
+│   ├── recording/    # Recording session state machine
+│   ├── settings/     # App preferences (theme, model URIs)
+│   ├── security/     # Biometric lock state
+│   └── tags/         # Tag management
+├── screens/          # Full-page screen components
 └── services/
-    ├── ai/              # SmartRagService, LocalVectorIndex, OfflineAiModelService
-    ├── audio/           # AudioService, AudioPlayerService
-    ├── database/        # SQLite (DatabaseService, NoteRepository)
-    ├── export/          # ExportService (Markdown, PDF, WAV)
-    ├── notes/           # StructuredNoteService (Note ↔ JSON content model)
-    ├── parsers/         # CommandParser (Voice NLP), markdownParser, noteFormatter
-    └── search/          # SearchService (Full-text + Tag filter + Date sort)
+    ├── ai/           # LocalVectorIndex, SmartRagService, OfflineAiModelService
+    ├── audio/        # AudioService (WAV capture + concatenation)
+    ├── background/   # BackgroundTaskManager (transcription queue)
+    ├── database/     # SQLite (DatabaseService, NoteRepository, FilesystemService)
+    ├── export/       # ExportService (Markdown / PDF / WAV)
+    ├── notes/        # StructuredNoteService (content model)
+    ├── parsers/      # HybridVoiceParser, CommandParser, markdownParser
+    ├── queue/        # TranscriptionQueue
+    └── search/       # SearchService (full-text + tag + date)
 ```
+
+### Key Design Decisions
+
+- **SQLite for metadata, filesystem for content** — note text is stored as `.md` files on disk; SQLite holds only indexed metadata. This keeps the DB small and queries fast.
+- **Vectors stored as compact binary** — embedding vectors are stored as base64-encoded Float32 buffers (~4× smaller than JSON arrays).
+- **Wall-clock duration** — recording duration is tracked via a JS timer rather than inferred from audio byte counts, avoiding sample-rate mismatch bugs.
+- **Lazy model loading** — Whisper and embedding models are released after each use rather than held in memory.
+
+---
+
+## Tech Stack
+
+| Layer | Library |
+|-------|---------|
+| Framework | React Native 0.86 |
+| Language | TypeScript 5.8 |
+| State | Zustand |
+| Database | react-native-sqlite-storage + react-native-mmkv |
+| Audio capture | react-native-audio-record |
+| Transcription | whisper.rn |
+| On-device LLM | llama.rn |
+| Navigation | React Navigation v7 |
+| Icons | Lucide React Native |
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js ≥ 22.11
+- JDK 17
+- Android SDK (API 34+)
+- React Native CLI
+
+### Setup
+
+```bash
+git clone https://github.com/DarshanAguru/ideatik.git
+cd ideatik
+npm install
+
+# Android
+npx react-native run-android
+```
+
+> iOS is not currently supported — some native modules (audio record, whisper.rn) need iOS configuration that hasn't been set up.
+
+### Optional: Enable Offline AI
+
+1. Open the app → Settings → Offline Capabilities & Models
+2. Download or import:
+   - **Whisper** — auto-downloads (~60 MB) when you first tap the mic
+   - **Embeddings** — BGE Base EN v1.5 Q4_K_M (~110 MB)
+   - **LLM** — Qwen 2.5 1.5B Instruct Q4_K_M (~986 MB)
+3. Models can also be imported from local GGUF files via the Import button
+
+---
+
+## Testing
+
+```bash
+npm test
+```
+
+Tests cover the voice command parser, hybrid parser, and structured note serialisation.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to get started.  
+Please read [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) before participating.
+
+---
+
+## Roadmap
+
+- [ ] iOS support
+- [ ] Cloud sync (opt-in, end-to-end encrypted)
+- [ ] Widget for quick voice capture
+- [ ] Shared note collaboration (local network)
+- [ ] Export to Notion / Obsidian
 
 ---
 
 ## License
 
-Created with ❤️ by **Darshan** • Privacy-first, open-source productivity utility.
+MIT © [Darshan Aguru](https://github.com/DarshanAguru)
+
+## About
+
+I'm a programming enthusiast who loves exploring new technologies and building things with them. I enjoy getting hands-on with new tools, frameworks, and ideas to understand how they work under the hood.
+
+Currently, I'm working as a Software Engineer, focused on creating utility-driven applications that solve real-world problems and provide value to others. I believe software should be practical, efficient, and accessible.
+
+I'm always learning, experimenting, and sharing what I build along the way.
+
+🌐 Portfolio: [https://thisdarshiii.in](https://thisdarshiii.in)

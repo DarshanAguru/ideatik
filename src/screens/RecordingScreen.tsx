@@ -264,7 +264,7 @@ export const RecordingScreen: React.FC = () => {
             {modelDownloadProgress}%
           </Heading>
           <Caption size="sm" style={{ color: colors.muted, textAlign: 'center', marginBottom: SPACING.xl }}>
-            The on-device transcription model only needs to download once. ~140 MB.
+            The on-device transcription model only needs to download once. ~60 MB.
           </Caption>
           <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
             <View

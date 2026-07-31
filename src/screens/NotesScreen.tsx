@@ -612,7 +612,10 @@ export const NotesScreen: React.FC = () => {
         colors={colors}
         isIndexing={pendingNoteIds.has(item.id)}
         isIndexed={indexedNoteIds.has(item.id)}
-        onPress={() => navigation.navigate('NoteDetail', { noteId: item.id })}
+        onPress={() => {
+          triggerHaptic('selection');
+          navigation.navigate('NoteDetail', { noteId: item.id });
+        }}
         onDelete={() => handleDelete(item.id, item.title)}
         onShare={() => showExportOptions(item)}
       />
@@ -697,7 +700,10 @@ export const NotesScreen: React.FC = () => {
               colors={colors}
               indexedNoteIds={indexedNoteIds}
               pendingNoteIds={pendingNoteIds}
-              onPress={(id) => navigation.navigate('NoteDetail', { noteId: id })}
+              onPress={(id) => {
+                triggerHaptic('selection');
+                navigation.navigate('NoteDetail', { noteId: id });
+              }}
               onDelete={handleDelete}
               onShare={showExportOptions}
               onReorder={setRecentOrder}

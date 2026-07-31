@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { StyleSheet, View, TextInput, ScrollView, TouchableOpacity, Alert, Dimensions, ActivityIndicator, Modal, Text, KeyboardAvoidingView, Platform, PanResponder, Animated, LayoutAnimation, UIManager, Keyboard, AppState, findNodeHandle } from 'react-native';
 import Tts from 'react-native-tts';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { Heading, Body, Caption, Label } from '../components/Typography';
-import { SPACING, COLORS, TYPOGRAPHY, RADIUS } from '../theme/theme';
+import { SPACING, COLORS, TYPOGRAPHY, RADIUS, SHADOWS } from '../theme/theme';
 import { useSettingsStore } from '../features/settings/settingsStore';
 import { useNotesStore } from '../features/notes/notesStore';
 import { NoteRepository } from '../services/database/NoteRepository';
@@ -31,101 +32,14 @@ const ChecklistItemRow = ({
   colors,
   onToggle,
   onDelete,
-  onUpdate,
+  onSelectForEditing,
+  isEditingThisItem,
   isFinance,
-  onAddNext,
-  onFocus,
   panHandlers,
   isDragging,
   dragPanY,
   onLayout,
-  autoFocus,
 }: any) => {
-  const [localText, setLocalText] = useState(item.text);
-  const [localAmount, setLocalAmount] = useState(item.amount !== undefined ? String(item.amount) : '');
-  const inputRef = useRef<any>(null);
-  // Per-item autosave debounce — saves 500ms after the user stops typing
-  const itemSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Keep latest text/amount in refs so the debounce closure always reads fresh values
-  const latestText = useRef(localText);
-  const latestAmount = useRef(localAmount);
-
-  useEffect(() => {
-    setLocalText(item.text);
-    latestText.current = item.text;
-  }, [item.text]);
-
-  useEffect(() => {
-    const a = item.amount !== undefined ? String(item.amount) : '';
-    setLocalAmount(a);
-    latestAmount.current = a;
-  }, [item.amount]);
-
-  useEffect(() => {
-    if (autoFocus && inputRef.current) {
-      const timer = setTimeout(() => {
-        inputRef.current?.focus();
-        const node = findNodeHandle(inputRef.current) || inputRef.current;
-        onFocus?.(node, item.id);
-      }, 80);
-      return () => clearTimeout(timer);
-    }
-  }, [autoFocus, onFocus, item.id]);
-
-  // Schedule a debounced save — 500ms after last keystroke
-  const scheduleItemSave = (text: string, amount: string) => {
-    latestText.current = text;
-    latestAmount.current = amount;
-    if (itemSaveTimer.current) clearTimeout(itemSaveTimer.current);
-    itemSaveTimer.current = setTimeout(() => {
-      itemSaveTimer.current = null;
-      const nextAmount = isFinance ? parseFloat(latestAmount.current) || 0 : undefined;
-      onUpdate(item.id, latestText.current.trim(), nextAmount);
-    }, 500);
-  };
-
-  // Flush immediately on blur (belt-and-suspenders — ensures save even if
-  // the user taps away before the 500ms debounce fires).
-  const handleBlur = () => {
-    if (itemSaveTimer.current) {
-      clearTimeout(itemSaveTimer.current);
-      itemSaveTimer.current = null;
-    }
-    const nextAmount = isFinance ? parseFloat(latestAmount.current) || 0 : undefined;
-    const currentAmount = item.amount || 0;
-    if (latestText.current.trim() !== item.text || (isFinance && nextAmount !== currentAmount)) {
-      onUpdate(item.id, latestText.current.trim(), nextAmount);
-    }
-  };
-
-  const handleChangeText = (text: string) => {
-    if (text.endsWith('\n')) {
-      // Enter key — commit immediately and jump to next item
-      if (itemSaveTimer.current) clearTimeout(itemSaveTimer.current);
-      itemSaveTimer.current = null;
-      const cleanText = text.slice(0, -1);
-      setLocalText(cleanText);
-      latestText.current = cleanText;
-      const nextAmount = isFinance ? parseFloat(latestAmount.current) || 0 : undefined;
-      onUpdate(item.id, cleanText.trim(), nextAmount);
-      onAddNext?.();
-    } else {
-      setLocalText(text);
-      scheduleItemSave(text, latestAmount.current);
-    }
-  };
-
-  const handleAmountChange = (amount: string) => {
-    setLocalAmount(amount);
-    scheduleItemSave(latestText.current, amount);
-  };
-
-  const handleKeyPress = ({ nativeEvent }: any) => {
-    if (nativeEvent.key === 'Backspace' && localText === '') {
-      onDelete(item.id);
-    }
-  };
-
   const animatedStyle = {
     transform: [
       { translateY: isDragging ? dragPanY : 0 },
@@ -140,13 +54,29 @@ const ChecklistItemRow = ({
   return (
     <Animated.View
       onLayout={onLayout}
-      style={[styles.keepRow, animatedStyle]}
+      style={[
+        styles.keepRow,
+        animatedStyle,
+        isEditingThisItem && {
+          backgroundColor: colors.overlay,
+          borderColor: colors.border,
+          borderWidth: 1,
+          borderRadius: RADIUS.md,
+        },
+      ]}
     >
       <View {...panHandlers} style={styles.dragHandle}>
         <GripVertical size={16} color={colors.muted} />
       </View>
 
-      <TouchableOpacity onPress={() => onToggle(item.id, item.checked)} style={styles.keepCheck}>
+      <TouchableOpacity
+        onPress={() => {
+          triggerHaptic('selection');
+          onToggle(item.id, item.checked);
+        }}
+        style={styles.keepCheck}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
         {item.checked ? (
           <CheckSquare size={18} color={colors.foreground} />
         ) : (
@@ -154,38 +84,48 @@ const ChecklistItemRow = ({
         )}
       </TouchableOpacity>
 
-      <TextInput
-        ref={inputRef}
-        style={[
-          styles.keepInput,
-          { color: item.checked ? colors.muted : colors.foreground },
-          item.checked ? { textDecorationLine: 'line-through' } : undefined,
-        ]}
-        value={localText}
-        onChangeText={handleChangeText}
-        onBlur={handleBlur}
-        onFocus={(e) => onFocus?.(e.nativeEvent.target, item.id)}
-        onKeyPress={handleKeyPress}
-        placeholder="List item"
-        placeholderTextColor={colors.placeholder}
-        multiline={true}
-        blurOnSubmit={false}
-      />
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => onSelectForEditing(item)}
+        style={{ flex: 1, justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 4 }}
+      >
+        <Text
+          style={[
+            styles.keepRowText,
+            { color: item.checked ? colors.muted : colors.foreground },
+            item.checked ? { textDecorationLine: 'line-through' } : undefined,
+            isEditingThisItem ? { fontWeight: '600' } : undefined,
+          ]}
+          numberOfLines={3}
+        >
+          {item.text || 'Item'}
+        </Text>
+      </TouchableOpacity>
 
       {isFinance && (
-        <TextInput
-          style={[styles.keepAmountInput, { color: colors.foreground }]}
-          value={localAmount}
-          onChangeText={handleAmountChange}
-          onBlur={handleBlur}
-          onFocus={(e) => onFocus?.(e.nativeEvent.target, item.id)}
-          keyboardType="numeric"
-          placeholder="₹0.00"
-          placeholderTextColor={colors.placeholder}
-        />
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => onSelectForEditing(item)}
+          style={[
+            styles.keepAmountBox,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+            isEditingThisItem && { borderColor: colors.foreground, borderWidth: 1.5 },
+          ]}
+        >
+          <Caption size="sm" style={{ color: colors.foreground, fontWeight: '600' }}>
+            {item.amount !== undefined && item.amount !== null && item.amount !== '' ? `₹${item.amount}` : '₹0'}
+          </Caption>
+        </TouchableOpacity>
       )}
 
-      <TouchableOpacity onPress={() => onDelete(item.id)} style={styles.keepDelete}>
+      <TouchableOpacity
+        onPress={() => {
+          triggerHaptic('impact');
+          onDelete(item.id);
+        }}
+        style={styles.keepDelete}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
         <Trash2 size={16} color={colors.muted} />
       </TouchableOpacity>
     </Animated.View>
@@ -196,11 +136,13 @@ export const NoteDetailScreen: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { noteId } = route.params;
+  const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const themeMode = useSettingsStore((state) => state.themeMode);
   const colors = COLORS[themeMode];
 
-  const { toggleChecklistItem, loadNotes } = useNotesStore();
+  const { toggleChecklistItem, loadNotes, purgeNote } = useNotesStore();
   const { tags, loadTags, createTag, deleteTag, getTagsByIds } = useTagsStore();
 
   const [note, setNote] = useState<any>(null);
@@ -210,6 +152,7 @@ export const NoteDetailScreen: React.FC = () => {
   const [newTagName, setNewTagName] = useState('');
   const [showManageTagsModal, setShowManageTagsModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<'preview' | 'transcript'>('preview');
   const [backlinks, setBacklinks] = useState<any[]>([]);
   const [availableReferenceNotes, setAvailableReferenceNotes] = useState<any[]>([]);
@@ -288,6 +231,8 @@ export const NoteDetailScreen: React.FC = () => {
   const bodyTextRef = useRef('');
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const addItemInputRef = useRef<any>(null);
+  const isAddItemInputFocusedRef = useRef(false);
+  const isPurgingRef = useRef(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Drag-and-drop state & refs for checklist reordering
@@ -628,7 +573,7 @@ export const NoteDetailScreen: React.FC = () => {
 
   // Note Lifecycle Saves
   const handleSaveContent = async (closeEditor = true) => {
-    if (!note) return;
+    if (isPurgingRef.current || !note) return;
 
     const currentTitle = noteTitleRef.current;
     const currentBodyText = bodyTextRef.current;
@@ -700,7 +645,9 @@ export const NoteDetailScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await NoteRepository.delete(note.id);
+              isPurgingRef.current = true;
+              if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+              await purgeNote(note.id);
               triggerHaptic('success');
               navigation.goBack();
             } catch (error) {
@@ -757,9 +704,11 @@ export const NoteDetailScreen: React.FC = () => {
   };
 
   const scheduleAutosave = useCallback(() => {
+    if (isPurgingRef.current) return;
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     autosaveTimerRef.current = setTimeout(() => {
       autosaveTimerRef.current = null;
+      if (isPurgingRef.current) return;
       handleSaveContent(false).catch((error) => console.warn('Note autosave failed:', error));
     }, 500);
   // handleSaveContent intentionally reads current editor state/refs at run time.
@@ -767,6 +716,7 @@ export const NoteDetailScreen: React.FC = () => {
   }, [note]);
 
   const flushAutosave = useCallback(() => {
+    if (isPurgingRef.current) return Promise.resolve();
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current);
       autosaveTimerRef.current = null;
@@ -891,6 +841,11 @@ export const NoteDetailScreen: React.FC = () => {
 
   const handleAddChecklistItem = async (text: string, amount?: number) => {
     if (!text.trim() || !note) return;
+
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
+
     const structured = StructuredNoteService.fromNote(note);
     const items = StructuredNoteService.items(structured);
     const newItems = [
@@ -905,23 +860,73 @@ export const NoteDetailScreen: React.FC = () => {
     ];
     const nextStructured = StructuredNoteService.normalize({
       ...structured,
-      // Route to the correct list — finance type uses financeItems, list type uses listItems
       listItems: structured.type === 'finance' ? structured.listItems : newItems,
       financeItems: structured.type === 'finance' ? newItems : structured.financeItems,
     });
-    await NoteRepository.save({
+
+    const updatedNote = {
       ...note,
       structuredContentJson: StructuredNoteService.toJson(nextStructured),
       markdownContent: StructuredNoteService.toMarkdown(nextStructured),
       transcript: StructuredNoteService.bodyText(nextStructured),
-    });
-    await fetchNoteDetails();
-    await loadNotes();
-    requestAnimationFrame(() => {
-      if (addItemInputRef.current) {
-        keepChecklistInputVisible(addItemInputRef.current);
-      }
-    });
+    };
+
+    // Optimistically update local state so the item snaps into the list instantly
+    setNote(updatedNote);
+    noteRef.current = updatedNote;
+
+    // Retain focus continuously for seamless typing
+    addItemInputRef.current?.focus();
+
+    // Persist to database in background
+    await NoteRepository.save(updatedNote);
+    loadNotes();
+  };
+
+  const handleSelectChecklistItemForEditing = (item: any) => {
+    triggerHaptic('selection');
+    setEditingItemId(item.id);
+    setNewItemText(item.text || '');
+    setNewItemAmount(item.amount !== undefined && item.amount !== null ? String(item.amount) : '');
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
+    // Blur first if already focused so React Native re-triggers full input focus & soft keyboard
+    if (addItemInputRef.current) {
+      addItemInputRef.current.blur();
+      requestAnimationFrame(() => {
+        addItemInputRef.current?.focus();
+      });
+    }
+    setTimeout(() => {
+      addItemInputRef.current?.focus();
+    }, 50);
+  };
+
+  const handleSaveFloatingDockItem = () => {
+    if (!newItemText.trim()) return;
+
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
+
+    if (editingItemId) {
+      handleUpdateChecklistItem(
+        editingItemId,
+        newItemText.trim(),
+        note.type === 'finance' ? parseFloat(newItemAmount) || 0 : undefined
+      );
+      setEditingItemId(null);
+    } else {
+      handleAddChecklistItem(
+        newItemText.trim(),
+        note.type === 'finance' ? parseFloat(newItemAmount) || 0 : undefined
+      );
+    }
+
+    setNewItemText('');
+    setNewItemAmount('');
+    addItemInputRef.current?.focus();
   };
 
   const keepChecklistInputVisible = useCallback((input: any, itemId?: string) => {
@@ -932,15 +937,36 @@ export const NoteDetailScreen: React.FC = () => {
       });
       return;
     }
-    if (!input) return;
-    const node = typeof input === 'number' ? input : findNodeHandle(input);
+    const targetInput = input || addItemInputRef.current;
+    if (!targetInput) return;
+    const node = typeof targetInput === 'number' ? targetInput : findNodeHandle(targetInput);
     if (!node || !scrollViewRef.current) return;
     requestAnimationFrame(() => {
       setTimeout(() => {
-        (scrollViewRef.current as any)?.scrollResponderScrollNativeHandleToKeyboard(node, 180, true);
+        (scrollViewRef.current as any)?.scrollResponderScrollNativeHandleToKeyboard(node, 100, true);
       }, 50);
     });
   }, []);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const subShow = Keyboard.addListener(showEvent, () => {
+      setKeyboardVisible(true);
+      if (isAddItemInputFocusedRef.current || addItemInputRef.current?.isFocused?.()) {
+        keepChecklistInputVisible(addItemInputRef.current);
+      }
+    });
+    const subHide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      subShow.remove();
+      subHide.remove();
+    };
+  }, [keepChecklistInputVisible]);
 
   const handleInsertChecklistItemAfter = async (itemId: string, text: string = '', amount?: number) => {
     if (!note) return;
@@ -996,16 +1022,14 @@ export const NoteDetailScreen: React.FC = () => {
 
     const newItems = items.filter((item) => item.id !== itemId);
 
-    const title = note.title ? note.title.trim() : '';
-    const isDefault = title === '' ||
-      title.toLowerCase() === 'untitled capture' ||
-      title.toLowerCase() === 'voice capture' ||
-      /^(note|list|finance-list)-\d+$/i.test(title);
-
-    if (newItems.length === 0 && isDefault) {
-      console.log('Ideatik: Deleting last checklist item of untitled list. Purging note and navigating back.');
-      await NoteRepository.purge(note.id);
-      await loadNotes();
+    // If deleting the last item in the list/finance ledger, purge the note and navigate back
+    if (newItems.length === 0) {
+      isPurgingRef.current = true;
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+      triggerHaptic('impact');
+      Keyboard.dismiss();
+      const targetId = note.id;
+      await purgeNote(targetId);
       navigation.goBack();
       return;
     }
@@ -1035,7 +1059,7 @@ export const NoteDetailScreen: React.FC = () => {
   };
 
   const handleUpdateChecklistItem = async (itemId: string, newText: string, amount?: number) => {
-    if (!note) return;
+    if (isPurgingRef.current || !note) return;
     const structured = StructuredNoteService.fromNote(note);
     const newItems = StructuredNoteService.items(structured).map((item) =>
       item.id === itemId ? { ...item, text: newText, amount: amount } : item
@@ -1137,95 +1161,47 @@ export const NoteDetailScreen: React.FC = () => {
         }}
       >
         {/* Active Checklist Items */}
-        {activeItems.map((item) => {
-          const responder = getPanResponder(item.id, false);
-          return (
-            <ChecklistItemRow
-              key={item.id}
-              item={item}
-              colors={colors}
-              onToggle={handleToggleCheckItem}
-              onDelete={handleDeleteChecklistItem}
-              onUpdate={handleUpdateChecklistItem}
-              isFinance={note.type === 'finance'}
-              onAddNext={() => handleInsertChecklistItemAfter(item.id)}
-              onFocus={keepChecklistInputVisible}
-              panHandlers={responder.panHandlers}
-              isDragging={activeDragItemId === item.id}
-              dragPanY={dragPanY}
-              onLayout={(e: any) => {
-                itemLayouts.current[item.id] = {
-                  y: e.nativeEvent.layout.y,
-                  h: e.nativeEvent.layout.height,
-                };
-              }}
-              autoFocus={item.id === newlyCreatedItemId}
-            />
-          );
-        })}
-
-        {/* Add item row */}
-        <View style={[styles.keepAddRow, { borderColor: colors.border }]}>
-          <Plus size={18} color={colors.muted} style={{ marginRight: SPACING.sm }} />
-          <TextInput
-            ref={addItemInputRef}
-            style={[styles.keepAddInput, { color: colors.foreground }]}
-            placeholder={note.type === 'finance' ? "Add expense..." : "Add item..."}
-            placeholderTextColor={colors.placeholder}
-            value={newItemText}
-            onChangeText={(text) => {
-              if (text.endsWith('\n')) {
-                const cleanText = text.slice(0, -1);
-                if (cleanText.trim()) {
-                  handleAddChecklistItem(cleanText, note.type === 'finance' ? parseFloat(newItemAmount) || 0 : undefined);
-                  setNewItemText('');
-                  setNewItemAmount('');
-                  setTimeout(() => addItemInputRef.current?.focus(), 50);
-                }
-              } else {
-                setNewItemText(text);
-              }
-            }}
-            multiline={true}
-            blurOnSubmit={false}
-            onFocus={(e) => {
-              keepChecklistInputVisible(e.nativeEvent.target);
-            }}
-          />
-          {note.type === 'finance' && (
-            <TextInput
-              style={[styles.keepAddAmountInput, { color: colors.foreground }]}
-              placeholder="₹0.00"
-              placeholderTextColor={colors.placeholder}
-              value={newItemAmount}
-              onChangeText={setNewItemAmount}
-              keyboardType="numeric"
-              returnKeyType="done"
-              onFocus={(e) => {
-                keepChecklistInputVisible(e.nativeEvent.target);
-              }}
-              onSubmitEditing={() => {
-                if (newItemText.trim()) {
-                  handleAddChecklistItem(newItemText, parseFloat(newItemAmount) || 0);
-                  setNewItemText('');
-                  setNewItemAmount('');
-                }
-              }}
-            />
-          )}
+        {activeItems.length === 0 ? (
           <TouchableOpacity
+            activeOpacity={0.7}
             onPress={() => {
-              if (newItemText.trim()) {
-                handleAddChecklistItem(newItemText, note.type === 'finance' ? parseFloat(newItemAmount) || 0 : undefined);
-                setNewItemText('');
-                setNewItemAmount('');
-              }
+              triggerHaptic('selection');
+              addItemInputRef.current?.focus();
             }}
-            style={styles.keepAddBtn}
+            style={styles.emptyItemsBox}
           >
-            <Caption size="sm" style={{ color: colors.foreground, fontWeight: '600' }}>Add</Caption>
+            <Body size="sm" style={{ color: colors.muted, textAlign: 'center', marginVertical: SPACING.md, fontWeight: '500' }}>
+              {note.type === 'finance'
+                ? `No expenses logged yet.\nTap below to add your first entry! 💸`
+                : `Your list is clear\nTap below to add your first item! ✨`}
+            </Body>
           </TouchableOpacity>
-        </View>
+        ) : (
+          activeItems.map((item) => {
+            const responder = getPanResponder(item.id, false);
+            return (
+              <ChecklistItemRow
+                key={item.id}
+                item={item}
+                colors={colors}
+                onToggle={handleToggleCheckItem}
+                onDelete={handleDeleteChecklistItem}
+                onSelectForEditing={handleSelectChecklistItemForEditing}
+                isEditingThisItem={editingItemId === item.id}
+                isFinance={note.type === 'finance'}
+                panHandlers={responder.panHandlers}
+                isDragging={activeDragItemId === item.id}
+                dragPanY={dragPanY}
+                onLayout={(e: any) => {
+                  itemLayouts.current[item.id] = {
+                    y: e.nativeEvent.layout.y,
+                    h: e.nativeEvent.layout.height,
+                  };
+                }}
+              />
+            );
+          })
+        )}
 
         {/* Completed Items Collapsible Section */}
         {completedItems.length > 0 && (
@@ -1260,10 +1236,9 @@ export const NoteDetailScreen: React.FC = () => {
                       colors={colors}
                       onToggle={handleToggleCheckItem}
                       onDelete={handleDeleteChecklistItem}
-                      onUpdate={handleUpdateChecklistItem}
+                      onSelectForEditing={handleSelectChecklistItemForEditing}
+                      isEditingThisItem={editingItemId === item.id}
                       isFinance={note.type === 'finance'}
-                      onAddNext={() => handleInsertChecklistItemAfter(item.id)}
-                      onFocus={keepChecklistInputVisible}
                       panHandlers={responder.panHandlers}
                       isDragging={activeDragItemId === item.id}
                       dragPanY={dragPanY}
@@ -1273,7 +1248,6 @@ export const NoteDetailScreen: React.FC = () => {
                           h: e.nativeEvent.layout.height,
                         };
                       }}
-                      autoFocus={item.id === newlyCreatedItemId}
                     />
                   );
                 })}
@@ -1527,10 +1501,10 @@ export const NoteDetailScreen: React.FC = () => {
 
   return (
       <KeyboardAvoidingView
-    style={{ flex: 1 }}
-    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    keyboardVerticalOffset={0}
-  >
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
     <ScreenWrapper style={styles.container}>
       {/* Top Header Controls */}
       <View style={styles.header}>
@@ -2116,6 +2090,92 @@ export const NoteDetailScreen: React.FC = () => {
         </View>
       </Modal>
     </ScreenWrapper>
+    {/* Modern Floating Pill Dock Bar — floating above UI & soft keyboard */}
+    {(note.type === 'list' || note.type === 'finance') && (
+      <View
+        style={[
+          styles.floatingDockPill,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            marginBottom: keyboardVisible ? SPACING.xs : Math.max((insets.bottom || 0) + 38, 48),
+          },
+          SHADOWS.md,
+        ]}
+      >
+        <TouchableOpacity
+          disabled={!(newItemText.trim() || newItemAmount.trim() || editingItemId)}
+          onPress={() => {
+            if (newItemText.trim() || newItemAmount.trim() || editingItemId) {
+              triggerHaptic('selection');
+              if (Platform.OS === 'ios' || Platform.OS === 'android') {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              }
+              setEditingItemId(null);
+              setNewItemText('');
+              setNewItemAmount('');
+            }
+          }}
+          activeOpacity={(newItemText.trim() || newItemAmount.trim() || editingItemId) ? 0.7 : 1}
+          style={[styles.floatingDockIconBadge, { backgroundColor: colors.overlay }]}
+        >
+          {(newItemText.trim() || newItemAmount.trim() || editingItemId) ? (
+            <X size={16} color={colors.foreground} />
+          ) : (
+            <Plus size={16} color={colors.foreground} />
+          )}
+        </TouchableOpacity>
+
+        <TextInput
+          ref={addItemInputRef}
+          style={[styles.floatingDockInput, { color: colors.foreground }]}
+          placeholder={
+            editingItemId
+              ? (note.type === 'finance' ? "Edit expense item..." : "Edit item...")
+              : (note.type === 'finance' ? "Add expense..." : "Add item...")
+          }
+          placeholderTextColor={colors.placeholder}
+          value={newItemText}
+          onChangeText={setNewItemText}
+          blurOnSubmit={false}
+          onSubmitEditing={handleSaveFloatingDockItem}
+          returnKeyType="done"
+        />
+
+        {note.type === 'finance' && (
+          <View style={[styles.floatingDockAmountBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <TextInput
+              style={[styles.floatingDockAmountInput, { color: colors.foreground }]}
+              placeholder="₹0.00"
+              placeholderTextColor={colors.placeholder}
+              value={newItemAmount}
+              onChangeText={setNewItemAmount}
+              keyboardType="numeric"
+              blurOnSubmit={false}
+              returnKeyType="done"
+              onSubmitEditing={handleSaveFloatingDockItem}
+            />
+          </View>
+        )}
+
+        <TouchableOpacity
+          onPress={() => {
+            triggerHaptic('impact');
+            handleSaveFloatingDockItem();
+          }}
+          style={[
+            styles.floatingDockSubmitBtn,
+            { backgroundColor: colors.foreground },
+            !newItemText.trim() ? { opacity: 0.4 } : undefined,
+          ]}
+          activeOpacity={0.8}
+        >
+          <Caption size="sm" style={{ color: colors.background, fontWeight: '700' }}>
+            {editingItemId ? "Save" : "Add"}
+          </Caption>
+        </TouchableOpacity>
+      </View>
+    )}
     </KeyboardAvoidingView>
   );
 };
@@ -2477,11 +2537,24 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 0,
   },
+  keepRowText: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
   keepAmountInput: {
     width: 65,
     fontSize: 15,
     textAlign: 'right',
     paddingVertical: 4,
+  },
+  keepAmountBox: {
+    paddingHorizontal: SPACING.xs + 2,
+    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.xs,
   },
   keepDelete: {
     padding: 6,
@@ -2581,5 +2654,70 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginTop: SPACING.sm,
+  },
+  quickAddTriggerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    marginTop: SPACING.sm,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: RADIUS.md,
+  },
+  quickAddIconBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyItemsBox: {
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floatingDockPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.sm + 2,
+    paddingVertical: 6,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    elevation: 6,
+  },
+  floatingDockIconBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.xs,
+  },
+  floatingDockInput: {
+    flex: 1,
+    fontSize: 15,
+    paddingVertical: 6,
+    paddingHorizontal: SPACING.xs,
+  },
+  floatingDockAmountBox: {
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.xs,
+    marginRight: SPACING.xs,
+  },
+  floatingDockAmountInput: {
+    width: 65,
+    fontSize: 14,
+    textAlign: 'right',
+    paddingVertical: 4,
+  },
+  floatingDockSubmitBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.full,
+    marginLeft: 2,
   },
 });

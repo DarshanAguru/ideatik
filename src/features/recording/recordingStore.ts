@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { AudioService } from '../../services/audio/AudioService';
 import { WhisperService } from '../../services/whisper/WhisperService';
 import { CommandParser } from '../../services/parsers/CommandParser';
+import { HybridVoiceParser } from '../../services/parsers/HybridVoiceParser';
 import { NoteChecklistItem, StructuredNote } from '../../services/parsers/types';
 import { markdownParser } from '../../services/parsers/markdownParser';
 import { noteFormatter } from '../../services/parsers/noteFormatter';
@@ -94,7 +95,7 @@ const transcribeLocallyInBackground = async (
       checked: item.checked,
     }));
 
-    const parsed = CommandParser.parse(rawText, parserItems, existing.type);
+    const parsed = await HybridVoiceParser.parse(rawText, parserItems, existing.type);
     
     // Merge references
     const mergedRefs = [...(existing.references || [])];
@@ -343,14 +344,20 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       return { audioUri: '', duration: 0 };
     }
 
-    if (timerInterval) clearInterval(timerInterval);
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
     isTranscribing = true;
 
     try {
       set({ recordingState: 'transcribing', transcriptionError: null });
 
-      const { audioUri, duration } = await AudioService.stop();
+      const { audioUri, duration: calcDuration } = await AudioService.stop();
       const current = get();
+      const wallClockDuration = current.elapsedTime;
+      const finalDuration = wallClockDuration > 0 ? wallClockDuration : calcDuration;
+
       const placeholderContent = StructuredNoteService.normalize({
         title: current.noteTitle || 'Untitled Capture',
         type: current.noteType,
@@ -372,7 +379,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         audioUri: audioUri,
         references: current.references,
         referenceLinks: placeholderContent.referenceIds,
-        duration: duration,
+        duration: finalDuration,
         transcriptionStatus: 'queued',
         transcriptionError: undefined,
       });
@@ -384,7 +391,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         savedNote?.audioUri || audioUri,
         placeholderContent.title,
         placeholderContent.type,
-        duration
+        finalDuration
       );
       BackgroundTaskManager.startProcessing();
 
@@ -397,10 +404,10 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       set({
         recordingState: 'stopped',
         audioUri,
-        duration,
+        duration: finalDuration,
       });
 
-      return { audioUri, duration };
+      return { audioUri, duration: finalDuration };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       console.error('Failed to stop recording:', error);

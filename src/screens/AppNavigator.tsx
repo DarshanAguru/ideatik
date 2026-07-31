@@ -20,6 +20,8 @@ import { BackgroundTaskManager } from '../services/background/BackgroundTaskMana
 import { WhisperService } from '../services/whisper/WhisperService';
 import { SystemNotificationService } from '../services/notifications/SystemNotificationService';
 
+import { triggerHaptic } from '../utils/haptics';
+
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -48,6 +50,11 @@ const TabNavigator = () => {
 
   return (
     <Tab.Navigator
+      screenListeners={{
+        tabPress: () => {
+          triggerHaptic('selection');
+        },
+      }}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.foreground,

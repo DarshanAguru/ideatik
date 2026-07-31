@@ -40,111 +40,75 @@ export const HelpScreen: React.FC = () => {
           <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Create Checklist</Body>
             <Caption size="sm" style={[styles.cmdSyntax, { color: colors.accent || colors.muted }]}>
-              create list · start checklist · make todo · checklist
+              create list · start checklist · make todo
             </Caption>
             <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              Switches note to a checklist. Supports conversational words and mispronunciations.
+              Switches note to a checklist. Use "add" to separate items (e.g., "add apples add milk").
             </Caption>
           </View>
 
           <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Create Finance Ledger</Body>
             <Caption size="sm" style={[styles.cmdSyntax, { color: colors.accent || colors.muted }]}>
-              create finance list · make ledger · budget list · ledger
+              create finance list · make ledger · budget list
             </Caption>
             <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              Switches to a ledger for tracking expenses/amounts.
+              Switches to an expense ledger. Use "cost" to attach amounts (e.g., "add rent cost twelve thousand").
             </Caption>
           </View>
 
           <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Add Checklist Items</Body>
+            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Link Another Note</Body>
             <Caption size="sm" style={[styles.cmdSyntax, { color: colors.accent || colors.muted }]}>
-              add {"<item>"} · add {"<item A>"} add {"<item B>"}
+              add reference here · link reference
             </Caption>
             <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              "add" is the only item splitter. Everything after "add" until the next "add" becomes one list entry — words like "and", "also", "then" are preserved as part of the item name (e.g. "add apple juice and mango" stays as one item).
+              Inserts a reference slot like [1] or [2] inside your note to link related entries.
             </Caption>
           </View>
 
           <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Add Finance / Ledger Items</Body>
+            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Ask AI / Search Notebook (Offline)</Body>
             <Caption size="sm" style={[styles.cmdSyntax, { color: colors.accent || colors.muted }]}>
-              add {"<desc>"} cost {"<amount>"} · add rent cost twelve thousand
+              "what was my food expense?" · "summarize meeting"
             </Caption>
             <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              Use "add" to start each entry. The word "cost" separates the description from the amount. Amounts can be spoken as digits or English words (e.g. "twelve thousand fifty rupees" → ₹12,050). Repeat "add" to add the next entry.
+              Ask natural queries in the Ask tab to search your notebook, sum expenses, or summarize notes completely offline.
             </Caption>
           </View>
-
-          <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Link / Reference another Note</Body>
-            <Caption size="sm" style={[styles.cmdSyntax, { color: colors.accent || colors.muted }]}>
-              add reference here · link reference · insert citation
-            </Caption>
-            <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              Inserts a sequential reference slot like [1], [2] to link another note. Extremely tolerant to misspellings/pronunciations (e.g. "add refrence hear", "difference hear").
-            </Caption>
-          </View>
-
-          <View style={[styles.cmdCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Body size="sm" style={[styles.cmdTitle, { color: colors.foreground }]}>Ask AI / Chat with Notes (Offline RAG)</Body>
-            <Caption size="sm" style={[styles.cmdSyntax, { color: colors.accent || colors.muted }]}>
-              "what was my goa trip food expense?" · "summarize meeting" · "what is the meaning of API?"
-            </Caption>
-            <Caption size="sm" style={[styles.cmdDesc, { color: colors.muted }]}>
-              Ask natural language queries in the Chat tab. Calculate expense totals, budget percentages, summaries, or word definitions from your notebook — completely offline.
-            </Caption>
-          </View>
-
         </View>
 
-
-        {/* Section: Manual Usage */}
+        {/* Section: Manual Usage & Features */}
         <View style={styles.section}>
           <Heading size="sm" style={[styles.sectionTitle, { color: colors.foreground }]}>
-            ✏️ Manual Usage & Features
+            ✏️ Key Features &amp; Workflow
           </Heading>
 
           <View style={[styles.helpItem, { borderBottomColor: colors.border }]}>
-            <Body size="md" style={[styles.helpQuestion, { color: colors.foreground }]}>Note, List & Finance</Body>
+            <Body size="md" style={[styles.helpQuestion, { color: colors.foreground }]}>Dock-Anchored Item Editing</Body>
             <Caption size="sm" style={{ color: colors.muted, lineHeight: 18 }}>
-              Tap "New Note", "New List", or "Finance" on the home screen to create manually. Lists and Finance support adding items and amounts directly from the detail view.
+              Tap any list item to open it directly in the floating bottom dock bar. Edit the text or amount above the keyboard and tap Save.
             </Caption>
           </View>
 
           <View style={[styles.helpItem, { borderBottomColor: colors.border }]}>
             <Body size="md" style={[styles.helpQuestion, { color: colors.foreground }]}>Interactive Link Slots</Body>
             <Caption size="sm" style={{ color: colors.muted, lineHeight: 18 }}>
-              You can manually type [1] or [2] inside any note body. The app will automatically parse them and prompt you to establish links to other notes.
+              Type [1] or [2] inside any note body. The app parses slot tags and lets you pick target notes to link.
             </Caption>
           </View>
 
           <View style={[styles.helpItem, { borderBottomColor: colors.border }]}>
-            <Body size="md" style={[styles.helpQuestion, { color: colors.foreground }]}>Text-To-Speech Reader</Body>
+            <Body size="md" style={[styles.helpQuestion, { color: colors.foreground }]}>Biometric Lock</Body>
             <Caption size="sm" style={{ color: colors.muted, lineHeight: 18 }}>
-              For written or text-only notes with no voice recording, a "Read Note" speaker icon is displayed. Tap it to hear the note read aloud offline.
+              Tap the lock icon in the top header of any note to secure it behind fingerprint or face authentication.
             </Caption>
           </View>
 
           <View style={[styles.helpItem, { borderBottomColor: colors.border }]}>
-            <Body size="md" style={[styles.helpQuestion, { color: colors.foreground }]}>Tags</Body>
+            <Body size="md" style={[styles.helpQuestion, { color: colors.foreground }]}>Offline Speech Reader &amp; Audio</Body>
             <Caption size="sm" style={{ color: colors.muted, lineHeight: 18 }}>
-              Open any note → type a tag name in the tag bar → tap Add. Tags are shared across all notes and can be used to filter in the Notes search screen.
-            </Caption>
-          </View>
-
-          <View style={[styles.helpItem, { borderBottomColor: colors.border }]}>
-            <Body size="md" style={[styles.helpQuestion, { color: colors.foreground }]}>Lock a Note</Body>
-            <Caption size="sm" style={{ color: colors.muted, lineHeight: 18 }}>
-              Tap the lock icon in the top-right of any note to require biometric / passcode authentication before it can be opened.
-            </Caption>
-          </View>
-
-          <View style={[styles.helpItem, { borderBottomColor: colors.border }]}>
-            <Body size="md" style={[styles.helpQuestion, { color: colors.foreground }]}>Offline Transcription</Body>
-            <Caption size="sm" style={{ color: colors.muted, lineHeight: 18 }}>
-              After recording stops, transcription runs in the background using an on-device Whisper model. Voice commands are parsed from the transcript automatically.
+              Tap the speaker icon on text notes to hear them read aloud offline. Voice recordings process locally via Whisper.
             </Caption>
           </View>
         </View>

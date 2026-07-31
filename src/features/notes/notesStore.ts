@@ -88,6 +88,9 @@ export const useNotesStore = create<NotesState>((set, get) => ({
 
   deleteNote: async (id) => {
     try {
+      set((state) => ({
+        notesList: state.notesList.filter((n) => n.id !== id),
+      }));
       await NoteRepository.delete(id);
       await get().loadNotes();
     } catch (e) {
@@ -106,6 +109,9 @@ export const useNotesStore = create<NotesState>((set, get) => ({
 
   purgeNote: async (id) => {
     try {
+      set((state) => ({
+        notesList: state.notesList.filter((n) => n.id !== id),
+      }));
       await NoteRepository.purge(id);
       await get().loadNotes();
     } catch (e) {

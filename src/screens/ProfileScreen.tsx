@@ -47,7 +47,7 @@ export const ProfileScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Heading size="xl">About Ideatik</Heading>
-          <Caption size="sm">Local-first, offline-first private productivity assistant.</Caption>
+          <Caption size="sm">Local-first, private workspace for notes, lists, and budgets.</Caption>
         </View>
 
         {/* Section: About App */}
@@ -68,7 +68,7 @@ export const ProfileScreen: React.FC = () => {
             ]}
           >
             <Caption size="sm" style={{ lineHeight: 20, color: colors.foreground }}>
-              This app is designed with a local-first philosophy—combining offline AI, voice-first note-taking, and a minimalist experience to keep your ideas private, searchable, and always accessible.
+              Ideatik is built on a local-first philosophy. It brings together offline speech recognition, structured lists, expense ledgers, and intelligent search into a simple, private tool—no account creation or cloud servers required.
             </Caption>
           </View>
         </View>
@@ -91,22 +91,19 @@ export const ProfileScreen: React.FC = () => {
             ]}
           >
             <Body size="sm" style={styles.infoText}>
-              🔒 <Body size="sm" style={{ fontWeight: '700' }}>100% Offline · No Cloud · No Accounts</Body>
+              🔒 <Body size="sm" style={{ fontWeight: '700' }}>100% On-Device &amp; Offline</Body> — All data, transcripts, and vector indexes remain exclusively on your phone. Nothing is uploaded to external servers.
             </Body>
             <Body size="sm" style={styles.infoText}>
-              All speech-to-text runs entirely on this device using a quantized Whisper model. Your audio and transcripts never leave your phone.
+              🎙️ <Body size="sm" style={{ fontWeight: '600' }}>Local Speech Recognition</Body> — Audio transcription runs using a quantized Whisper model on-device. Recordings are split into short WAV chunks to run efficiently without high memory usage.
             </Body>
             <Body size="sm" style={styles.infoText}>
-              🤖 <Body size="sm" style={{ fontWeight: '600' }}>Local RAG & On-Device AI</Body> — Vector embedding indexing, semantic search, and offline LLM intelligence execute 100% on-device. Zero notes, vector indexes, or AI queries are ever sent to external cloud servers.
+              🤖 <Body size="sm" style={{ fontWeight: '600' }}>On-Device AI &amp; RAG</Body> — Semantic vector indexing and answers run locally on your device for fast, private querying across your personal notes.
             </Body>
             <Body size="sm" style={styles.infoText}>
-              🧩 <Body size="sm" style={{ fontWeight: '600' }}>Local-First Storage</Body> — Notes are saved as standard Markdown (.md) files and audio as WAV on your internal storage. Back up by copying files directly from your device.
-            </Body>
-            <Body size="sm" style={styles.infoText}>
-              ⚡ <Body size="sm" style={{ fontWeight: '600' }}>WAV Chunking</Body> — Long recordings are split into 30-second segments processed sequentially to keep memory usage low on mobile.
+              📄 <Body size="sm" style={{ fontWeight: '600' }}>Open File Formats</Body> — Notes are stored as standard Markdown (.md) and audio as WAV files on your device storage. You can back up your notes anytime by simply copying the folder.
             </Body>
             <Body size="sm" style={{ lineHeight: 20, color: colors.muted }}>
-              No analytics, no telemetry, no sync servers, no crash reporters. Zero third-party data sharing.
+              No telemetry, no analytics, no ad tracking, and no external sign-ins. Zero third-party data sharing.
             </Body>
           </View>
         </View>

@@ -88,7 +88,10 @@ class WhisperServiceClass {
 
   async checkModelExists(): Promise<boolean> {
     const path = this.getModelPath();
-    return RNFS.exists(path);
+    const exists = await RNFS.exists(path);
+    if (!exists) return false;
+    const stat = await RNFS.stat(path).catch(() => null);
+    return Boolean(stat && stat.size > 5 * 1024 * 1024);
   }
 
   async downloadModel(onProgress: (progress: number) => void): Promise<void> {

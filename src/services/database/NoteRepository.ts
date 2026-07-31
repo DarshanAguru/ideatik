@@ -1,3 +1,29 @@
+/**
+ * NoteRepository.ts
+ *
+ * Single source of truth for reading and writing note data.
+ *
+ * Storage model:
+ *   - SQLite (`notes` table)  — stores all searchable metadata: id, title, type,
+ *     transcription status, duration, tags, references, structured content JSON.
+ *     markdownContent is stored as an empty string here (see note below).
+ *   - Filesystem (`.md` files) — stores the canonical Markdown representation
+ *     of each note under <DocumentDirectory>/files/notes/<id>.md.
+ *   - Filesystem (`.wav` files) — stores recorded audio under
+ *     <DocumentDirectory>/files/audio/<id>.wav.
+ *
+ * Why keep markdownContent off SQLite?
+ *   Markdown can be megabytes for long notes. Storing it in SQLite doubles the
+ *   write cost and inflates the DB file. StructuredNoteService.fromNote() always
+ *   prefers `structuredContentJson`, so markdownContent in SQLite is redundant.
+ *   When mapRowToNote() is called, markdownContent is regenerated from the
+ *   in-memory structured data rather than re-read from disk.
+ *
+ * Save cache:
+ *   `createdAt` and `audioUri` are looked up from an in-memory Map on each
+ *   save to avoid a SQLite read on every autosave tick (which fires every 5 s
+ *   during recording). The cache is invalidated on purge.
+ */
 import { DatabaseService } from './DatabaseService';
 import { FilesystemService } from './FilesystemService';
 import { NoteMetadata, NoteReference } from './types';
@@ -6,7 +32,8 @@ import { StructuredNoteService } from '../notes/StructuredNoteService';
 
 
 class NoteRepositoryClass {
-  // In-memory cache of note metadata (createdAt and audioUri) to optimize high-frequency saves
+  // In-memory cache of (createdAt, audioUri) keyed by noteId.
+  // Avoids a SQLite read on every autosave during recording.
   private saveCache = new Map<string, { createdAt: number; audioUri: string }>();
 
   /**
@@ -102,7 +129,10 @@ class NoteRepositoryClass {
         console.warn('NoteRepository: Error syncing words to dictionary store:', err);
       }
 
-      // Save metadata to SQLite
+      // Save metadata to SQLite.
+      // markdownContent is intentionally stored empty here — the canonical file is already written
+      // to disk by FilesystemService.writeMarkdown() above. StructuredNoteService.fromNote()
+      // always prefers structuredContentJson, so this avoids doubling large text fields in SQLite.
       await DatabaseService.execute(
         `INSERT OR REPLACE INTO notes (
           id, title, type, markdownContent, structuredContentJson, transcript, audioUri, referencesJson,
@@ -113,7 +143,7 @@ class NoteRepositoryClass {
           note.id,
           title,
           type,
-          mdContent,
+          '', // markdownContent: stored empty — canonical copy is on disk
           structuredContentJson,
           transcript,
           finalAudioUri,
@@ -222,6 +252,12 @@ class NoteRepositoryClass {
         await TranscriptionQueue.removeByNoteId(id);
       } catch (err) {
         console.warn('NoteRepository: Error removing from transcription queue:', err);
+      }
+      try {
+        const { LocalVectorIndex } = require('../ai/LocalVectorIndex');
+        await LocalVectorIndex.removeNote(id);
+      } catch (err) {
+        console.warn('NoteRepository: Error removing vector embeddings:', err);
       }
     } catch (e) {
       console.error(`NoteRepository: Error purging note assets ${id}:`, e);
@@ -336,6 +372,9 @@ class NoteRepositoryClass {
       referenceIds: referenceLinks.length > 0 ? referenceLinks : refs.map((title) => ({ noteId: '', title })),
       pendingReferenceCommands,
     });
+
+    // Regenerate markdownContent from structured data (not stored in SQLite to save space)
+    const markdownContent = row.markdownContent || StructuredNoteService.toMarkdown(structured);
 
     return {
       id: row.id,
