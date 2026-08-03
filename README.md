@@ -9,6 +9,7 @@ Captures your thoughts, converts them into structured notes, and lets you query 
 
 [![React Native](https://img.shields.io/badge/React%20Native-0.86-blue?logo=react)](https://reactnative.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue?logo=typescript)](https://www.typescriptlang.org)
+[![Version](https://img.shields.io/badge/version-2.0.1-blue)](./package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](./CONTRIBUTING.md)
 

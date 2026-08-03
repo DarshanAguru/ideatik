@@ -233,6 +233,7 @@ export const NoteDetailScreen: React.FC = () => {
   const addItemInputRef = useRef<any>(null);
   const isAddItemInputFocusedRef = useRef(false);
   const isPurgingRef = useRef(false);
+  const isEditingRef = useRef(false); // mirrors isEditing state; readable inside async callbacks without stale closure
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Drag-and-drop state & refs for checklist reordering
@@ -357,6 +358,12 @@ export const NoteDetailScreen: React.FC = () => {
     bodyTextRef.current = bodyText;
   }, [bodyText]);
 
+  // Mirror isEditing into a ref so async callbacks and store subscribers
+  // can read the current value without capturing a stale closure.
+  useEffect(() => {
+    isEditingRef.current = isEditing;
+  }, [isEditing]);
+
   useEffect(() => {
     fetchNoteDetails();
     loadTags();
@@ -378,7 +385,12 @@ export const NoteDetailScreen: React.FC = () => {
           current.transcriptionStatus !== updatedNote.transcriptionStatus ||
           current.markdownContent !== updatedNote.markdownContent
         ) {
-          fetchNoteDetails();
+          // Skip the re-fetch while the body text editor is open.
+          // The store fires after every autosave, and fetchNoteDetails()
+          // resets bodyText from the DB — undoing the user's keystrokes.
+          if (!isEditingRef.current) {
+            fetchNoteDetails();
+          }
         }
       }
     });
@@ -628,8 +640,22 @@ export const NoteDetailScreen: React.FC = () => {
       isPinned: note.isPinned,
     });
 
-    if (closeEditor) setIsEditing(false);
-    await fetchNoteDetails();
+    if (closeEditor) {
+      // Full re-fetch only when closing the editor — safe because the TextInput
+      // is no longer mounted at this point, so resetting bodyText doesn't matter.
+      setIsEditing(false);
+      await fetchNoteDetails();
+    } else {
+      // Autosave while the editor is still open: update note state from the
+      // already-computed nextStructured WITHOUT calling fetchNoteDetails().
+      // fetchNoteDetails() calls setBodyText() from the DB, which resets the
+      // controlled TextInput and undoes the user's in-flight keystrokes.
+      setNote((prev: any) => prev ? {
+        ...prev,
+        title: nextStructured.title,
+        structuredContentJson: StructuredNoteService.toJson(nextStructured),
+      } : prev);
+    }
     await loadNotes();
   };
 

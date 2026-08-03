@@ -191,7 +191,7 @@ export const ProfileScreen: React.FC = () => {
         {/* Section: Application Info */}
         <View style={styles.infoSection}>
           <Caption size="xs" style={[styles.centerText, { color: colors.muted }]}>
-            Ideatik v2.0.0 • privacy-first open-source
+            Ideatik v2.0.1 • privacy-first open-source
           </Caption>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
             <Caption size="xs" style={{ color: colors.muted }}>Made with</Caption>
